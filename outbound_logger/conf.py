@@ -9,6 +9,7 @@ SETTING_NAME = "OUTBOUND_LOGGER"
 LOGGING_MAIL_BACKEND = "outbound_logger.mail.backends.LoggingEmailBackend"
 DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024
 DEFAULT_RETENTION_DAYS = 90
+DEFAULT_RETRY_TIMEOUT = 30
 DEFAULT_REDACT_HEADERS = (
     "Authorization",
     "Proxy-Authorization",
@@ -34,6 +35,11 @@ DEFAULTS = {
     "RETENTION_DAYS": DEFAULT_RETENTION_DAYS,
     # Request and response headers whose value is replaced before it is stored.
     "HTTP_REDACT_HEADERS": DEFAULT_REDACT_HEADERS,
+    # Dotted path to a callable returning a configured requests.Session. The retry
+    # prepares on top of it, so the credentials the log does not hold come back.
+    "HTTP_SESSION_FACTORY": None,
+    # Seconds a retried request waits before giving up.
+    "HTTP_RETRY_TIMEOUT": DEFAULT_RETRY_TIMEOUT,
 }
 
 
