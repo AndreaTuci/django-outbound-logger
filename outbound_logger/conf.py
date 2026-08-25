@@ -1,0 +1,80 @@
+"""The OUTBOUND_LOGGER setting: defaults, access and validation."""
+
+from django.conf import settings
+from django.core.checks import Error
+from django.core.checks import Warning as CheckWarning
+from django.core.exceptions import ImproperlyConfigured
+
+SETTING_NAME = "OUTBOUND_LOGGER"
+LOGGING_MAIL_BACKEND = "outbound_logger.mail.backends.LoggingEmailBackend"
+DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024
+
+DEFAULTS = {
+    # The real backend messages are delegated to, as a dotted path.
+    "MAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+    # Keyword arguments for it, when it cannot read its own settings.
+    "MAIL_BACKEND_OPTIONS": {},
+    # A MAILERS alias to delegate to instead (Django 6.1+). Excludes MAIL_BACKEND.
+    "MAIL_MAILER": None,
+    # Store the message body and its MIME bytes, or only the metadata.
+    "STORE_BODY": True,
+    # Above this size the MIME bytes are dropped: no retry for that message.
+    "MAX_BODY_BYTES": DEFAULT_MAX_BODY_BYTES,
+}
+
+
+def get_setting(name):
+    """Return one OUTBOUND_LOGGER value, falling back to the packaged default."""
+    if name not in DEFAULTS:
+        raise ImproperlyConfigured(f"{SETTING_NAME} has no setting named {name!r}.")
+    return getattr(settings, SETTING_NAME, {}).get(name, DEFAULTS[name])
+
+
+def is_set(name):
+    """True when the project spells the setting out, whatever its value."""
+    return name in getattr(settings, SETTING_NAME, {})
+
+
+def check_settings(app_configs, **kwargs):
+    """A misspelled setting is silently ignored otherwise, which is worse than loud."""
+    unknown = sorted(set(getattr(settings, SETTING_NAME, {})) - set(DEFAULTS))
+    problems = [
+        Error(
+            f"Unknown {SETTING_NAME} setting {name!r}.",
+            hint=f"Known settings: {', '.join(sorted(DEFAULTS))}.",
+            id="outbound_logger.E001",
+        )
+        for name in unknown
+    ]
+
+    if get_setting("MAIL_MAILER") and is_set("MAIL_BACKEND"):
+        problems.append(
+            Error(
+                "MAIL_MAILER and MAIL_BACKEND both name the backend to delegate to.",
+                hint="Keep MAIL_MAILER on projects using MAILERS, MAIL_BACKEND elsewhere.",
+                id="outbound_logger.E002",
+            )
+        )
+
+    if get_setting("MAIL_BACKEND") == LOGGING_MAIL_BACKEND:
+        problems.append(
+            Error(
+                "MAIL_BACKEND delegates to the logging backend itself.",
+                hint="Point it at the backend that really sends, e.g. the SMTP one.",
+                id="outbound_logger.E003",
+            )
+        )
+
+    if hasattr(settings, "MAILERS") and not get_setting("MAIL_MAILER"):
+        problems.append(
+            CheckWarning(
+                "This project uses MAILERS but MAIL_MAILER is not set.",
+                hint=(
+                    "Add the mailer alias that really sends to MAIL_MAILER, otherwise "
+                    "the delegate is built from the deprecated EMAIL_* settings."
+                ),
+                id="outbound_logger.W001",
+            )
+        )
+
+    return problems
