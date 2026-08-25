@@ -10,5 +10,7 @@ urlpatterns = [
     path("echo/", views.echo, name="echo"),
     path("fetch/", views.fetch, name="fetch"),
     path("fetch/broken/", views.fetch_broken, name="fetch-broken"),
+    path("echo/flaky/", views.echo_flaky, name="echo-flaky"),
+    path("fetch/flaky/", views.fetch_flaky, name="fetch-flaky"),
     path("admin/", admin.site.urls),
 ]
