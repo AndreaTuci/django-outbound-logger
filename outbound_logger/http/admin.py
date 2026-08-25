@@ -1,8 +1,12 @@
 from django.contrib import admin
+from django.db.models import Count
 from django.utils.translation import gettext_lazy as _
 
-from ..admin import ReadOnlyLogAdmin, RetentionFilter
+from ..admin import ReadOnlyLogAdmin, RetentionFilter, message_retry_report
 from .models import HttpRequestAttempt, HttpRequestLog
+from .retry import retry_requests
+
+ATTEMPT_COUNT_FIELD = "_attempt_count"
 
 
 class HttpRequestAttemptInline(admin.TabularInline):
@@ -19,6 +23,7 @@ class HttpRequestAttemptInline(admin.TabularInline):
 @admin.register(HttpRequestLog)
 class HttpRequestLogAdmin(ReadOnlyLogAdmin):
     date_hierarchy = "created_at"
+    actions = ("retry_selected",)
     list_display = (
         "created_at",
         "method",
@@ -27,6 +32,7 @@ class HttpRequestLogAdmin(ReadOnlyLogAdmin):
         "status_code",
         "duration_ms",
         "retriable",
+        "attempt_count",
     )
     list_filter = ("status", "method", "retriable", "created_at", RetentionFilter)
     search_fields = ("url", "reason")
@@ -70,3 +76,16 @@ class HttpRequestLogAdmin(ReadOnlyLogAdmin):
             },
         ),
     )
+
+    def get_queryset(self, request):
+        annotation = {ATTEMPT_COUNT_FIELD: Count("attempts")}
+        return super().get_queryset(request).annotate(**annotation)
+
+    @admin.display(description=_("attempts"), ordering=ATTEMPT_COUNT_FIELD)
+    def attempt_count(self, log):
+        return getattr(log, ATTEMPT_COUNT_FIELD)
+
+    @admin.action(description=_("Send the selected requests again"))
+    def retry_selected(self, request, queryset):
+        report = retry_requests(queryset, trigger=HttpRequestAttempt.Trigger.ADMIN)
+        message_retry_report(self, request, report)
