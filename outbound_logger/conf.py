@@ -9,6 +9,14 @@ SETTING_NAME = "OUTBOUND_LOGGER"
 LOGGING_MAIL_BACKEND = "outbound_logger.mail.backends.LoggingEmailBackend"
 DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024
 DEFAULT_RETENTION_DAYS = 90
+DEFAULT_REDACT_HEADERS = (
+    "Authorization",
+    "Proxy-Authorization",
+    "Cookie",
+    "Set-Cookie",
+    "X-Api-Key",
+    "X-Auth-Token",
+)
 
 DEFAULTS = {
     # The real backend messages are delegated to, as a dotted path.
@@ -24,6 +32,8 @@ DEFAULTS = {
     # How long a log is kept, for the purge to act on. Nothing is deleted until
     # the purge is called: from the admin, from the command or from a task.
     "RETENTION_DAYS": DEFAULT_RETENTION_DAYS,
+    # Request and response headers whose value is replaced before it is stored.
+    "HTTP_REDACT_HEADERS": DEFAULT_REDACT_HEADERS,
 }
 
 
