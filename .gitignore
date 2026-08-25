@@ -42,3 +42,6 @@ Thumbs.db
 skills-cli.log
 PLAN-*.md
 NOTES-*.md
+
+# Example project database
+example/db.sqlite3

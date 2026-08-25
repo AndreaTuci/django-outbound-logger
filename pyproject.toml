@@ -50,6 +50,8 @@ packages = ["outbound_logger"]
 [tool.hatch.build.targets.sdist]
 include = [
     "outbound_logger",
+    "example",
+    "manage.py",
     "tests",
     "runtests.py",
     "README.md",
