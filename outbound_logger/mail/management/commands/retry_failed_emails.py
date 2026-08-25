@@ -40,7 +40,7 @@ class Command(BaseCommand):
             return
 
         report = retry_emails(logs, trigger=EmailSendAttempt.Trigger.COMMAND)
-        self.stdout.write(self.style.SUCCESS(f"{len(report.sent)} message(s) sent again."))
+        self.stdout.write(self.style.SUCCESS(f"{len(report.succeeded)} message(s) sent again."))
         if report.failed:
             self.stdout.write(self.style.ERROR(f"{len(report.failed)} failed again."))
         for log, reason in report.skipped:

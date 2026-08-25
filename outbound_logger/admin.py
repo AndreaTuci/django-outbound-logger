@@ -1,6 +1,8 @@
 """Admin pieces shared by the logs."""
 
-from django.contrib import admin
+from collections import Counter
+
+from django.contrib import admin, messages
 from django.utils.translation import gettext_lazy as _
 
 from .purge import expired
@@ -30,3 +32,25 @@ class RetentionFilter(admin.SimpleListFilter):
         if self.value() == self.EXPIRED:
             return expired(queryset)
         return queryset
+
+
+def message_retry_report(model_admin, request, report):
+    """Turn what a retry reported into admin messages."""
+    if report.succeeded:
+        model_admin.message_user(
+            request,
+            _("%(count)d sent again.") % {"count": len(report.succeeded)},
+            messages.SUCCESS,
+        )
+    if report.failed:
+        model_admin.message_user(
+            request,
+            _("%(count)d failed again.") % {"count": len(report.failed)},
+            messages.ERROR,
+        )
+    for reason, count in Counter(reason for _log, reason in report.skipped).items():
+        model_admin.message_user(
+            request,
+            _("%(count)d skipped: %(reason)s") % {"count": count, "reason": reason},
+            messages.WARNING,
+        )

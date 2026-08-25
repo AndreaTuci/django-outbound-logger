@@ -1,12 +1,10 @@
-from collections import Counter
-
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.db.models import Count, TextField
 from django.db.models.functions import Cast
 from django.template.defaultfilters import filesizeformat
 from django.utils.translation import gettext_lazy as _
 
-from ..admin import ReadOnlyLogAdmin, RetentionFilter
+from ..admin import ReadOnlyLogAdmin, RetentionFilter, message_retry_report
 from .models import EmailLog, EmailSendAttempt
 from .retry import retry_emails
 
@@ -74,26 +72,7 @@ class EmailLogAdmin(ReadOnlyLogAdmin):
     @admin.action(description=_("Send the selected messages again"))
     def retry_selected(self, request, queryset):
         report = retry_emails(queryset, trigger=EmailSendAttempt.Trigger.ADMIN)
-
-        if report.sent:
-            self.message_user(
-                request,
-                _("%(count)d message(s) sent again.") % {"count": len(report.sent)},
-                messages.SUCCESS,
-            )
-        if report.failed:
-            self.message_user(
-                request,
-                _("%(count)d message(s) failed again.") % {"count": len(report.failed)},
-                messages.ERROR,
-            )
-        for reason, count in Counter(reason for _log, reason in report.skipped).items():
-            self.message_user(
-                request,
-                _("%(count)d message(s) skipped: %(reason)s")
-                % {"count": count, "reason": reason},
-                messages.WARNING,
-            )
+        message_retry_report(self, request, report)
 
     @admin.display(description=_("attempts"), ordering=ATTEMPT_COUNT_FIELD)
     def attempt_count(self, log):
