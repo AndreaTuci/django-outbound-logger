@@ -6,7 +6,7 @@ from django.db.models.functions import Cast
 from django.template.defaultfilters import filesizeformat
 from django.utils.translation import gettext_lazy as _
 
-from ..admin import ReadOnlyLogAdmin
+from ..admin import ReadOnlyLogAdmin, RetentionFilter
 from .models import EmailLog, EmailSendAttempt
 from .retry import retry_emails
 
@@ -37,7 +37,7 @@ class EmailLogAdmin(ReadOnlyLogAdmin):
         "subject",
         "attempt_count",
     )
-    list_filter = ("status", "created_at")
+    list_filter = ("status", "created_at", RetentionFilter)
     search_fields = ("subject", "from_email", "message_id", RECIPIENTS_SEARCH_FIELD)
     inlines = (EmailSendAttemptInline,)
     readonly_fields = ("raw_message_size",)
