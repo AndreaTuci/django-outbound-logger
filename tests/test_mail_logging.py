@@ -4,7 +4,8 @@ from django.core import mail
 from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase, override_settings
 
-from outbound_logger.mail.backends import NOTHING_SENT, LoggingEmailBackend
+from outbound_logger.mail.backends import LoggingEmailBackend
+from outbound_logger.mail.delivery import NOTHING_SENT
 from outbound_logger.mail.models import EmailLog, EmailSendAttempt
 
 from .backends import FAILURE_MESSAGE
