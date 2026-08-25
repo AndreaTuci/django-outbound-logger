@@ -1,0 +1,39 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    name: Build & publish to PyPI
+    runs-on: ubuntu-latest
+
+    # Required for PyPI Trusted Publishing (OIDC) — no API token needed.
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Verify tag matches pyproject.toml version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          PKG=$(grep -m1 '^version' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG does not match pyproject.toml version $PKG"
+            exit 1
+          fi
+          echo "Tag v$TAG matches package version $PKG."
+
+      - name: Build distribution
+        run: uv build
+
+      - name: Publish to PyPI
+        run: uv publish
