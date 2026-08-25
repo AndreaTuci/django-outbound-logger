@@ -1,0 +1,99 @@
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+
+METHOD_MAX_LENGTH = 10
+REASON_MAX_LENGTH = 255
+CHOICE_MAX_LENGTH = 16
+
+
+class BodyOmission(models.TextChoices):
+    DISABLED = "disabled", _("Body storage disabled")
+    TOO_LARGE = "too_large", _("Body above the size limit")
+    BINARY = "binary", _("Body is not text")
+    STREAMED = "streamed", _("Body was streamed")
+
+
+class HttpRequestLog(models.Model):
+    class Status(models.TextChoices):
+        COMPLETED = "completed", _("Completed")
+        FAILED = "failed", _("Failed")
+
+    created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+    status = models.CharField(
+        _("status"), max_length=CHOICE_MAX_LENGTH, choices=Status.choices
+    )
+    duration_ms = models.PositiveIntegerField(_("duration (ms)"), null=True, blank=True)
+
+    method = models.CharField(_("method"), max_length=METHOD_MAX_LENGTH)
+    url = models.TextField(_("url"))
+    request_headers = models.JSONField(_("request headers"), default=dict, blank=True)
+    request_body = models.TextField(_("request body"), blank=True)
+    request_body_omission = models.CharField(
+        _("request body omitted because"),
+        max_length=CHOICE_MAX_LENGTH,
+        choices=BodyOmission.choices,
+        blank=True,
+    )
+    retriable = models.BooleanField(_("retriable"), default=False)
+    context = models.JSONField(_("context"), default=dict, blank=True)
+
+    status_code = models.PositiveSmallIntegerField(
+        _("status code"), null=True, blank=True
+    )
+    reason = models.CharField(_("reason"), max_length=REASON_MAX_LENGTH, blank=True)
+    response_headers = models.JSONField(_("response headers"), default=dict, blank=True)
+    response_body = models.TextField(_("response body"), blank=True)
+    response_body_omission = models.CharField(
+        _("response body omitted because"),
+        max_length=CHOICE_MAX_LENGTH,
+        choices=BodyOmission.choices,
+        blank=True,
+    )
+    response_truncated = models.BooleanField(_("response truncated"), default=False)
+
+    class Meta:
+        verbose_name = _("HTTP request log")
+        verbose_name_plural = _("HTTP request logs")
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("status", "created_at")),
+            models.Index(fields=("status_code",)),
+        ]
+
+    def __str__(self):
+        return f"{self.method} {self.url}"
+
+    @property
+    def is_error(self):
+        return self.status == self.Status.FAILED or (self.status_code or 0) >= 400
+
+
+class HttpRequestAttempt(models.Model):
+    class Trigger(models.TextChoices):
+        REQUEST = "request", _("Initial request")
+        ADMIN = "admin", _("Retry from the admin")
+        COMMAND = "command", _("Retry from a management command")
+        CODE = "code", _("Retry from code")
+
+    log = models.ForeignKey(
+        HttpRequestLog,
+        on_delete=models.CASCADE,
+        related_name="attempts",
+        verbose_name=_("HTTP request log"),
+    )
+    started_at = models.DateTimeField(_("started at"), auto_now_add=True)
+    trigger = models.CharField(
+        _("trigger"), max_length=CHOICE_MAX_LENGTH, choices=Trigger.choices
+    )
+    status_code = models.PositiveSmallIntegerField(
+        _("status code"), null=True, blank=True
+    )
+    error = models.TextField(_("error"), blank=True)
+
+    class Meta:
+        verbose_name = _("request attempt")
+        verbose_name_plural = _("request attempts")
+        ordering = ("-started_at",)
+
+    def __str__(self):
+        return f"{self.get_trigger_display()}: {self.status_code or _('no response')}"
