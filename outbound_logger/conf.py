@@ -8,6 +8,7 @@ from django.core.exceptions import ImproperlyConfigured
 SETTING_NAME = "OUTBOUND_LOGGER"
 LOGGING_MAIL_BACKEND = "outbound_logger.mail.backends.LoggingEmailBackend"
 DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024
+DEFAULT_RETENTION_DAYS = 90
 
 DEFAULTS = {
     # The real backend messages are delegated to, as a dotted path.
@@ -20,6 +21,9 @@ DEFAULTS = {
     "STORE_BODY": True,
     # Above this size the MIME bytes are dropped: no retry for that message.
     "MAX_BODY_BYTES": DEFAULT_MAX_BODY_BYTES,
+    # How long a log is kept, for the purge to act on. Nothing is deleted until
+    # the purge is called: from the admin, from the command or from a task.
+    "RETENTION_DAYS": DEFAULT_RETENTION_DAYS,
 }
 
 
