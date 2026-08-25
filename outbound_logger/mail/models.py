@@ -61,6 +61,20 @@ class EmailLog(models.Model):
     def __str__(self):
         return f"{self.subject or '(no subject)'} -> {', '.join(self.to)}"
 
+    def why_not_retriable(self):
+        """What keeps this message from being sent again, or "" when nothing does."""
+        if self.status != self.Status.FAILED:
+            return _("only a failed message can be sent again")
+        if self.body_omission == self.BodyOmission.DISABLED:
+            return _("its body was not stored")
+        if self.attachments and self.raw_message is None:
+            return _("its attachments were not stored")
+        return ""
+
+    @property
+    def can_retry(self):
+        return not self.why_not_retriable()
+
     def mark_sent(self, trigger):
         self.status = self.Status.SENT
         self.sent_at = timezone.now()
