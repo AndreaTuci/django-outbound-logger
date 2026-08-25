@@ -75,7 +75,7 @@ class RetryTests(MailTestCase):
 
         report = retry_emails([log])
 
-        self.assertEqual(report.sent, [log])
+        self.assertEqual(report.succeeded, [log])
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(EmailLog.objects.count(), 1)  # the retry reuses the row
         log.refresh_from_db()
@@ -108,7 +108,7 @@ class RetryTests(MailTestCase):
 
         report = retry_emails([log])
 
-        self.assertEqual(report.sent, [])
+        self.assertEqual(report.succeeded, [])
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(report.skipped[0][0], log)
 

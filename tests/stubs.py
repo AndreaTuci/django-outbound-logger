@@ -1,5 +1,6 @@
 """HTTP adapters that answer without touching the network."""
 
+import requests
 from requests.adapters import BaseAdapter
 from requests.models import Response
 
@@ -32,3 +33,12 @@ class StubAdapter(BaseAdapter):
 
     def close(self):
         pass
+
+
+def build_stub_session():
+    """What OUTBOUND_LOGGER["HTTP_SESSION_FACTORY"] points at in the tests:
+    a session that carries credentials and never touches the network."""
+    session = requests.Session()
+    session.headers["Authorization"] = "Bearer the-real-one"
+    session.mount("https://", StubAdapter())
+    return session
