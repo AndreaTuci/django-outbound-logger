@@ -13,6 +13,17 @@ class BodyOmission(models.TextChoices):
     STREAMED = "streamed", _("Body was streamed")
 
 
+# What a log holds when no response ever came back.
+NO_RESPONSE = {
+    "status_code": None,
+    "reason": "",
+    "response_headers": {},
+    "response_body": "",
+    "response_body_omission": "",
+    "response_truncated": False,
+}
+
+
 class HttpRequestLog(models.Model):
     class Status(models.TextChoices):
         COMPLETED = "completed", _("Completed")
@@ -66,6 +77,33 @@ class HttpRequestLog(models.Model):
     @property
     def is_error(self):
         return self.status == self.Status.FAILED or (self.status_code or 0) >= 400
+
+    def why_not_retriable(self):
+        """What keeps this request from being sent again, or "" when nothing does."""
+        if not self.retriable:
+            return _("this request is not marked as retriable")
+        if self.request_body_omission:
+            return _("its body was not stored")
+        return ""
+
+    @property
+    def can_retry(self):
+        return not self.why_not_retriable()
+
+    def mark_completed(self, response_fields, duration_ms, trigger):
+        self.update(
+            status=self.Status.COMPLETED, duration_ms=duration_ms, **response_fields
+        )
+        return self.attempts.create(trigger=trigger, status_code=self.status_code)
+
+    def mark_failed(self, error, duration_ms, trigger):
+        self.update(status=self.Status.FAILED, duration_ms=duration_ms, **NO_RESPONSE)
+        return self.attempts.create(trigger=trigger, error=error)
+
+    def update(self, **fields):
+        for name, value in fields.items():
+            setattr(self, name, value)
+        self.save()
 
 
 class HttpRequestAttempt(models.Model):
