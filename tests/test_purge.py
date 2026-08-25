@@ -7,6 +7,8 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from outbound_logger.http.models import HttpRequestLog
+from outbound_logger.http.purge import purge_http_logs
 from outbound_logger.mail.models import EmailLog, EmailSendAttempt
 from outbound_logger.mail.purge import purge_email_logs
 
@@ -110,3 +112,35 @@ class RetentionFilterTests(TestCase):
         response = self.client.get(CHANGELIST_URL)
 
         self.assertContains(response, "delete_selected")
+
+
+def http_log_created_days_ago(days, url):
+    log = HttpRequestLog.objects.create(
+        status=HttpRequestLog.Status.FAILED, method="GET", url=url
+    )
+    HttpRequestLog.objects.filter(pk=log.pk).update(
+        created_at=timezone.now() - timedelta(days=days)
+    )
+    return log
+
+
+class HttpPurgeTests(TestCase):
+    def setUp(self):
+        self.old = http_log_created_days_ago(120, "https://api.example.com/old")
+        self.recent = http_log_created_days_ago(10, "https://api.example.com/recent")
+
+    def test_the_same_window_applies_to_the_http_logs(self):
+        deleted = purge_http_logs()
+
+        self.assertEqual(deleted, 1)
+        self.assertEqual(list(HttpRequestLog.objects.all()), [self.recent])
+
+    def test_the_command_deletes_them(self):
+        call_command("purge_http_logs", stdout=StringIO())
+
+        self.assertEqual(list(HttpRequestLog.objects.all()), [self.recent])
+
+    def test_the_command_can_be_told_the_window(self):
+        call_command("purge_http_logs", days=5, stdout=StringIO())
+
+        self.assertEqual(HttpRequestLog.objects.count(), 0)

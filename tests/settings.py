@@ -12,6 +12,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sessions",
     "outbound_logger.mail",
+    "outbound_logger.http",
 ]
 
 MIDDLEWARE = [
