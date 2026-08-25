@@ -1,7 +1,5 @@
 """The email backend that logs, then delegates to the one that really sends."""
 
-import traceback
-
 import django
 from django.core.exceptions import ImproperlyConfigured
 from django.core.mail.backends.base import BaseEmailBackend
@@ -9,15 +7,13 @@ from django.utils.module_loading import import_string
 
 from ..conf import LOGGING_MAIL_BACKEND, get_setting
 from .capture import create_log
+from .delivery import send_and_record
 from .models import EmailSendAttempt
 
 # Django 6.1 warns when a built-in backend is built without an `alias` keyword.
 # Passing alias=None asks for the settings-driven behaviour without the warning;
 # older versions ignore the keyword.
 SUPPORTS_ALIAS = django.VERSION >= (6, 1)
-
-NOTHING_SENT = "The backend accepted the message but reported nothing sent."
-TRIGGER = EmailSendAttempt.Trigger.SEND
 
 
 def build_delegate(**options):
@@ -63,44 +59,12 @@ class LoggingEmailBackend(BaseEmailBackend):
         self.delegate.close()
 
     def send_messages(self, email_messages):
-        if not email_messages:
-            return 0
-
-        # Logged before opening the connection: a mail server that is down must
-        # leave a row behind, not a hole.
-        logs = [create_log(message) for message in email_messages]
-
-        try:
-            new_connection = self.delegate.open()
-        except Exception:
-            error = traceback.format_exc()
-            for log in logs:
-                log.mark_failed(error, trigger=TRIGGER)
-            if not self.fail_silently:
-                raise
-            return 0
-
-        try:
-            return self.deliver(email_messages, logs)
-        finally:
-            if new_connection:
-                self.delegate.close()
-
-    def deliver(self, email_messages, logs):
-        """One message at a time, so every log gets its own outcome."""
-        sent = 0
-        for message, log in zip(email_messages, logs):
-            try:
-                delivered = self.delegate.send_messages([message])
-            except Exception:
-                log.mark_failed(traceback.format_exc(), trigger=TRIGGER)
-                if not self.fail_silently:
-                    raise
-                continue
-
-            if delivered:
-                log.mark_sent(trigger=TRIGGER)
-                sent += 1
-            else:
-                log.mark_failed(NOTHING_SENT, trigger=TRIGGER)
-        return sent
+        # Logged before the connection is opened: a mail server that is down must
+        # leave rows behind, not a hole.
+        pairs = [(message, create_log(message)) for message in email_messages]
+        return send_and_record(
+            self.delegate,
+            pairs,
+            trigger=EmailSendAttempt.Trigger.SEND,
+            fail_silently=self.fail_silently,
+        )
