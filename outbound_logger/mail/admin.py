@@ -1,13 +1,17 @@
-from django.contrib import admin
-from django.db.models import TextField
+from collections import Counter
+
+from django.contrib import admin, messages
+from django.db.models import Count, TextField
 from django.db.models.functions import Cast
 from django.template.defaultfilters import filesizeformat
 from django.utils.translation import gettext_lazy as _
 
 from ..admin import ReadOnlyLogAdmin
 from .models import EmailLog, EmailSendAttempt
+from .retry import retry_emails
 
 RECIPIENTS_SEARCH_FIELD = "_recipients"
+ATTEMPT_COUNT_FIELD = "_attempt_count"
 
 
 class EmailSendAttemptInline(admin.TabularInline):
@@ -24,7 +28,15 @@ class EmailSendAttemptInline(admin.TabularInline):
 @admin.register(EmailLog)
 class EmailLogAdmin(ReadOnlyLogAdmin):
     date_hierarchy = "created_at"
-    list_display = ("created_at", "status", "from_email", "recipients", "subject")
+    actions = ("retry_selected",)
+    list_display = (
+        "created_at",
+        "status",
+        "from_email",
+        "recipients",
+        "subject",
+        "attempt_count",
+    )
     list_filter = ("status", "created_at")
     search_fields = ("subject", "from_email", "message_id", RECIPIENTS_SEARCH_FIELD)
     inlines = (EmailSendAttemptInline,)
@@ -53,8 +65,39 @@ class EmailLogAdmin(ReadOnlyLogAdmin):
     def get_queryset(self, request):
         # Recipients live in a JSON list: cast it to text so that admin search
         # can run its LIKE over it on every database backend.
-        annotation = {RECIPIENTS_SEARCH_FIELD: Cast("to", TextField())}
-        return super().get_queryset(request).annotate(**annotation)
+        annotations = {
+            RECIPIENTS_SEARCH_FIELD: Cast("to", TextField()),
+            ATTEMPT_COUNT_FIELD: Count("attempts"),
+        }
+        return super().get_queryset(request).annotate(**annotations)
+
+    @admin.action(description=_("Send the selected messages again"))
+    def retry_selected(self, request, queryset):
+        report = retry_emails(queryset, trigger=EmailSendAttempt.Trigger.ADMIN)
+
+        if report.sent:
+            self.message_user(
+                request,
+                _("%(count)d message(s) sent again.") % {"count": len(report.sent)},
+                messages.SUCCESS,
+            )
+        if report.failed:
+            self.message_user(
+                request,
+                _("%(count)d message(s) failed again.") % {"count": len(report.failed)},
+                messages.ERROR,
+            )
+        for reason, count in Counter(reason for _log, reason in report.skipped).items():
+            self.message_user(
+                request,
+                _("%(count)d message(s) skipped: %(reason)s")
+                % {"count": count, "reason": reason},
+                messages.WARNING,
+            )
+
+    @admin.display(description=_("attempts"), ordering=ATTEMPT_COUNT_FIELD)
+    def attempt_count(self, log):
+        return getattr(log, ATTEMPT_COUNT_FIELD)
 
     @admin.display(description=_("to"))
     def recipients(self, log):
