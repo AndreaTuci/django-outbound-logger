@@ -7,6 +7,8 @@ from django.utils import timezone
 
 from .conf import get_setting
 
+BATCH_SIZE = 1000
+
 
 def cutoff(older_than_days: int | None = None) -> datetime:
     """The instant before which logs are old enough to be deleted."""
@@ -21,7 +23,18 @@ def expired(queryset: QuerySet, older_than_days: int | None = None) -> QuerySet:
 def purge_logs(model: type[Model], older_than_days: int | None = None) -> int:
     """Delete the expired logs and return how many of them went away.
 
-    Only the logs are counted: what cascades with them is not.
+    Deleted a batch at a time: the attempts cascade, so Django has to load every
+    row it deletes, and a year of logs does not belong in memory at once. Only
+    the logs are counted, not what cascades with them.
     """
-    _total, by_model = expired(model._default_manager.all(), older_than_days).delete()
-    return by_model.get(model._meta.label, 0)
+    deleted = 0
+    while True:
+        batch = list(
+            expired(model._default_manager.all(), older_than_days).values_list(
+                "pk", flat=True
+            )[:BATCH_SIZE]
+        )
+        if not batch:
+            return deleted
+        _total, by_model = model._default_manager.filter(pk__in=batch).delete()
+        deleted += by_model.get(model._meta.label, 0)

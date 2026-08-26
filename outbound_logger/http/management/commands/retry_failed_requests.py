@@ -74,9 +74,9 @@ def select_logs(
         .filter(unanswered)
         .order_by("created_at")
     )
-    if since_days:
+    if since_days is not None:
         logs = logs.filter(created_at__gte=timezone.now() - timedelta(days=since_days))
-    if max_attempts:
+    if max_attempts is not None:
         logs = logs.annotate(attempt_count=Count("attempts")).filter(
             attempt_count__lt=max_attempts
         )

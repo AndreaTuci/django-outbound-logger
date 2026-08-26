@@ -31,12 +31,40 @@ def rebuild_message(log: EmailLog) -> EmailMultiAlternatives:
 
     if log.html_body and not log.body:
         message.content_subtype = "html"
-    elif log.html_body:
+
+    if log.html_body and log.body:
         message.attach_alternative(log.html_body, HTML_MIMETYPE)
+
+    # The fields hold the HTML one exactly; anything else - a calendar invitation,
+    # say - only exists in the stored MIME.
+    for content, mimetype in extract_alternatives(log.raw_message):
+        if mimetype != HTML_MIMETYPE:
+            message.attach_alternative(content, mimetype)
 
     for filename, content, content_type in extract_attachments(log.raw_message):
         message.attach(filename, content, content_type)
     return message
+
+
+def extract_alternatives(raw_message: bytes | None) -> list[tuple[Any, str]]:
+    """Every alternative of the stored MIME but the plain body."""
+    if raw_message is None:
+        return []
+
+    parsed = message_from_bytes(bytes(raw_message), policy=policy.default)
+    plain = parsed.get_body(preferencelist=("plain",))
+    return [
+        (part.get_content(), part.get_content_type())
+        for part in alternative_parts(parsed)
+        if part is not plain
+    ]
+
+
+def alternative_parts(parsed: Any) -> list[Any]:
+    for part in parsed.walk():
+        if part.get_content_type() == "multipart/alternative":
+            return list(part.iter_parts())
+    return []
 
 
 def extract_attachments(raw_message: bytes | None) -> list[tuple[str, Any, str]]:

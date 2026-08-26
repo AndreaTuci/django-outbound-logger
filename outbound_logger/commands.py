@@ -4,6 +4,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandParser
 from django.db.models import Model
+from django.utils import timezone
 
 from .purge import cutoff, expired, purge_logs
 
@@ -28,7 +29,7 @@ class PurgeLogsCommand(BaseCommand):
 
     def handle(self, *args: Any, **options: Any) -> None:
         days = options["days"]
-        older_than = f"older than {cutoff(days):%Y-%m-%d %H:%M}"
+        older_than = f"older than {timezone.localtime(cutoff(days)):%Y-%m-%d %H:%M}"
 
         if options["dry_run"]:
             count = expired(self.model._default_manager.all(), days).count()
