@@ -13,6 +13,7 @@ class BodyOmission(models.TextChoices):
     TOO_LARGE = "too_large", _("Body above the size limit")
     BINARY = "binary", _("Body is not text")
     STREAMED = "streamed", _("Body was streamed")
+    UNPREPARED = "unprepared", _("The request was never prepared")
 
 
 # What a log holds when no response ever came back.
@@ -71,6 +72,10 @@ class HttpRequestLog(models.Model):
         indexes = [
             models.Index(fields=("status", "created_at")),
             models.Index(fields=("status_code",)),
+            models.Index(fields=("created_at",)),  # the purge filters on it alone
+        ]
+        permissions = [
+            ("retry_httprequestlog", _("Can send logged requests again"))
         ]
 
     def __str__(self) -> str:

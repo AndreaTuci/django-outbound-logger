@@ -8,6 +8,7 @@ from .models import HttpRequestAttempt, HttpRequestLog
 from .retry import retry_requests
 
 ATTEMPT_COUNT_FIELD = "_attempt_count"
+DEFERRED_FIELDS = ("request_body", "response_body")
 
 
 class HttpRequestAttemptInline(admin.TabularInline):
@@ -82,13 +83,21 @@ class HttpRequestLogAdmin(ReadOnlyLogAdmin):
 
     def get_queryset(self, request: HttpRequest) -> QuerySet:
         annotation = {ATTEMPT_COUNT_FIELD: Count("attempts")}
-        return super().get_queryset(request).annotate(**annotation)
+        # The bodies are not shown in the list: the detail page loads its own row.
+        return (
+            super()
+            .get_queryset(request)
+            .defer(*DEFERRED_FIELDS)
+            .annotate(**annotation)
+        )
 
     @admin.display(description=_("attempts"), ordering=ATTEMPT_COUNT_FIELD)
     def attempt_count(self, log: HttpRequestLog) -> int:
         return getattr(log, ATTEMPT_COUNT_FIELD)
 
-    @admin.action(description=_("Send the selected requests again"))
+    @admin.action(
+        description=_("Send the selected requests again"), permissions=["retry"]
+    )
     def retry_selected(self, request: HttpRequest, queryset: QuerySet) -> None:
         report = retry_requests(queryset, trigger=HttpRequestAttempt.Trigger.ADMIN)
         message_retry_report(self, request, report)

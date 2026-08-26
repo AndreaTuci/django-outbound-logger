@@ -58,7 +58,11 @@ class EmailLog(models.Model):
         verbose_name = _("email log")
         verbose_name_plural = _("email logs")
         ordering = ("-created_at",)
-        indexes = [models.Index(fields=("status", "created_at"))]
+        indexes = [
+            models.Index(fields=("status", "created_at")),
+            models.Index(fields=("created_at",)),  # the purge filters on it alone
+        ]
+        permissions = [("retry_emaillog", _("Can send logged messages again"))]
 
     def __str__(self) -> str:
         subject = self.subject or _("(no subject)")

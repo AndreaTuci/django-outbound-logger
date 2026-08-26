@@ -11,6 +11,7 @@ from .retry import retry_emails
 
 RECIPIENTS_SEARCH_FIELD = "_recipients"
 ATTEMPT_COUNT_FIELD = "_attempt_count"
+DEFERRED_FIELDS = ("raw_message", "body", "html_body")
 
 
 class EmailSendAttemptInline(admin.TabularInline):
@@ -68,9 +69,18 @@ class EmailLogAdmin(ReadOnlyLogAdmin):
             RECIPIENTS_SEARCH_FIELD: Cast("to", TextField()),
             ATTEMPT_COUNT_FIELD: Count("attempts"),
         }
-        return super().get_queryset(request).annotate(**annotations)
+        # The payloads are megabytes the changelist never shows: the detail page
+        # loads the one row it needs.
+        return (
+            super()
+            .get_queryset(request)
+            .defer(*DEFERRED_FIELDS)
+            .annotate(**annotations)
+        )
 
-    @admin.action(description=_("Send the selected messages again"))
+    @admin.action(
+        description=_("Send the selected messages again"), permissions=["retry"]
+    )
     def retry_selected(self, request: HttpRequest, queryset: QuerySet) -> None:
         report = retry_emails(queryset, trigger=EmailSendAttempt.Trigger.ADMIN)
         message_retry_report(self, request, report)

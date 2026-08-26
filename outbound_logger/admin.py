@@ -21,6 +21,12 @@ class ReadOnlyLogAdmin(admin.ModelAdmin):
     def has_change_permission(self, request: HttpRequest, obj: Model | None = None) -> bool:
         return False
 
+    def has_retry_permission(self, request: HttpRequest) -> bool:
+        """Sending things again is not something a read-only viewer may do."""
+        return request.user.has_perm(
+            f"{self.opts.app_label}.retry_{self.opts.model_name}"
+        )
+
 
 class RetentionFilter(admin.SimpleListFilter):
     """Selects what the purge would delete, so that the standard delete action can."""
