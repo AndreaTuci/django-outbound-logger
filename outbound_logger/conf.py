@@ -3,6 +3,7 @@
 from typing import Any
 
 from django.conf import settings
+from django.db import DEFAULT_DB_ALIAS
 from django.core.checks import CheckMessage, Error
 from django.core.checks import Warning as CheckWarning
 from django.core.exceptions import ImproperlyConfigured
@@ -113,6 +114,19 @@ def check_database(alias: str | None) -> list[CheckMessage]:
     """A log database nobody routes to is a setting that quietly does nothing."""
     if not alias:
         return []
+
+    if alias == DEFAULT_DB_ALIAS:
+        return [
+            Error(
+                f"DATABASE is {alias!r}, which is the connection everything else "
+                "already uses.",
+                hint=(
+                    "The point of the setting is a second connection: name another "
+                    "alias, or drop the setting and the router."
+                ),
+                id="outbound_logger.E005",
+            )
+        ]
 
     if alias not in settings.DATABASES:
         return [

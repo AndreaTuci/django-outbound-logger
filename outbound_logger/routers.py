@@ -4,6 +4,8 @@ from typing import Any
 
 from django.db.models import Model
 
+from django.db import DEFAULT_DB_ALIAS
+
 from .conf import get_setting
 
 APP_LABELS = frozenset({"outbound_mail", "outbound_http"})
@@ -32,4 +34,7 @@ class OutboundLoggerRouter:
         return False if db == alias else None
 
     def alias(self) -> str | None:
-        return get_setting("DATABASE")
+        # The default alias is refused: routing to it would keep every other app
+        # off the only database there is.
+        alias = get_setting("DATABASE")
+        return None if alias == DEFAULT_DB_ALIAS else alias
