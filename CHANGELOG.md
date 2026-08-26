@@ -3,6 +3,22 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project follows [semantic versioning](https://semver.org/).
 
+## [0.4.0] - 2026-08-26
+
+### Added
+
+- `manage.py check` now warns (`outbound_logger.W003`) when the mail app is
+  installed but `EMAIL_BACKEND` never reaches the logging backend: the package
+  would be installed, migrated and silent, and nothing else would say so. A
+  subclass of the backend counts, and so does a `MAILERS` entry; locmem does
+  not warn, since that is what Django's test runner puts in place.
+- The change page of an email log renders the HTML body in a sandboxed frame.
+
+### Note
+
+If your CI runs `manage.py check --fail-level WARNING`, W003 is a new way for it
+to fail — which is the point, but worth knowing before you upgrade.
+
 ## [0.3.1] - 2026-08-26
 
 ### Fixed
@@ -102,6 +118,7 @@ First release.
 - Read-only admin for both logs, with the attempts alongside.
 - `manage.py check` reports a misspelled or contradictory setting.
 
+[0.4.0]: https://github.com/AndreaTuci/django-outbound-logger/releases/tag/v0.4.0
 [0.3.1]: https://github.com/AndreaTuci/django-outbound-logger/releases/tag/v0.3.1
 [0.3.0]: https://github.com/AndreaTuci/django-outbound-logger/releases/tag/v0.3.0
 [0.2.0]: https://github.com/AndreaTuci/django-outbound-logger/releases/tag/v0.2.0

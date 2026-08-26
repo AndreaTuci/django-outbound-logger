@@ -60,6 +60,57 @@ OUTBOUND_LOGGER = {"MAIL_MAILER": "smtp"}
 Use `MAIL_MAILER` (the alias of another mailer) instead of `MAIL_BACKEND` (a
 dotted path). Setting both is refused.
 
+The change page shows the HTML body rendered in a sandboxed frame, so you see
+the message as it was sent without the admin running its markup.
+
+## With a themed admin (django-unfold and friends)
+
+A theme ships its own `ModelAdmin` and `TabularInline`, so the logs have to be
+registered again on top of them. Every admin class here is a plain `ModelAdmin`,
+written to be inherited:
+
+```python
+from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline
+
+from outbound_logger.http.admin import (
+    HttpRequestAttemptInline as BaseHttpAttemptInline,
+    HttpRequestLogAdmin as BaseHttpRequestLogAdmin,
+)
+from outbound_logger.http.models import HttpRequestLog
+from outbound_logger.mail.admin import (
+    EmailLogAdmin as BaseEmailLogAdmin,
+    EmailSendAttemptInline as BaseEmailAttemptInline,
+)
+from outbound_logger.mail.models import EmailLog
+
+admin.site.unregister(EmailLog)
+admin.site.unregister(HttpRequestLog)
+
+
+class EmailSendAttemptInline(BaseEmailAttemptInline, TabularInline):
+    pass
+
+
+class HttpRequestAttemptInline(BaseHttpAttemptInline, TabularInline):
+    pass
+
+
+@admin.register(EmailLog)
+class EmailLogAdmin(BaseEmailLogAdmin, ModelAdmin):
+    inlines = (EmailSendAttemptInline,)
+
+
+@admin.register(HttpRequestLog)
+class HttpRequestLogAdmin(BaseHttpRequestLogAdmin, ModelAdmin):
+    inlines = (HttpRequestAttemptInline,)
+```
+
+Two things to keep in mind: the inlines have to be redeclared, because the ones
+on the base still inherit from Django's own; and the file has to be loaded after
+ours, which any app listed after `outbound_logger.mail` in `INSTALLED_APPS`
+already is.
+
 ## Sending a failed message again
 
 From the admin, with the action *Send the selected messages again* — which asks
@@ -227,7 +278,9 @@ the split. Setting the alias without adding the router is reported by
 ## Settings
 
 Everything lives in one dict. A key that is not on this list is reported by
-`manage.py check` rather than ignored.
+`manage.py check` rather than ignored — as is an `EMAIL_BACKEND` that never
+reaches the logging backend, which would otherwise leave the package installed,
+migrated and silent.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
