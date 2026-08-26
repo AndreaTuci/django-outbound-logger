@@ -1,0 +1,216 @@
+# Italian translation of django-outbound-logger.
+# Copyright (C) 2026 Andrea Tuci
+# This file is distributed under the same license as the package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: django-outbound-logger 0.2.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-26 02:52-0500\n"
+"PO-Revision-Date: 2026-08-26 10:00+0200\n"
+"Last-Translator: Andrea Tuci\n"
+"Language-Team: Italiano\n"
+"Language: it\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: admin.py:45
+msgid "Envelope"
+msgstr "Busta"
+
+#: admin.py:49
+msgid "Content"
+msgstr "Contenuto"
+
+#: admin.py:72
+msgid "Send the selected messages again"
+msgstr "Rispedisci i messaggi selezionati"
+
+#: admin.py:77
+msgid "attempts"
+msgstr "tentativi"
+
+#: admin.py:81 models.py:34
+msgid "to"
+msgstr "a"
+
+#: admin.py:85
+msgid "raw MIME size"
+msgstr "dimensione del MIME"
+
+#: admin.py:88
+msgid "not stored"
+msgstr "non salvato"
+
+#: apps.py:12
+msgid "Outbound mail"
+msgstr "Mail in uscita"
+
+#: models.py:13
+msgid "Pending"
+msgstr "In attesa"
+
+#: models.py:14
+msgid "Sent"
+msgstr "Inviata"
+
+#: models.py:15
+msgid "Failed"
+msgstr "Fallita"
+
+#: models.py:18
+msgid "Body storage disabled"
+msgstr "Salvataggio del corpo disattivato"
+
+#: models.py:19
+msgid "Message above the size limit"
+msgstr "Messaggio oltre il limite di dimensione"
+
+#: models.py:21
+msgid "created at"
+msgstr "creata il"
+
+#: models.py:23
+msgid "status"
+msgstr "stato"
+
+#: models.py:28
+msgid "sent at"
+msgstr "inviata il"
+
+#: models.py:30
+msgid "message id"
+msgstr "id del messaggio"
+
+#: models.py:33
+msgid "from"
+msgstr "da"
+
+#: models.py:35
+msgid "cc"
+msgstr "CC"
+
+#: models.py:36
+msgid "bcc"
+msgstr "BCC"
+
+#: models.py:37
+msgid "reply to"
+msgstr "rispondi a"
+
+#: models.py:38
+msgid "subject"
+msgstr "oggetto"
+
+#: models.py:40
+msgid "body"
+msgstr "corpo"
+
+#: models.py:41
+msgid "HTML body"
+msgstr "corpo HTML"
+
+#: models.py:42
+msgid "headers"
+msgstr "header"
+
+#: models.py:43
+msgid "attachments"
+msgstr "allegati"
+
+#: models.py:45
+msgid "raw MIME message"
+msgstr "messaggio MIME grezzo"
+
+#: models.py:48
+msgid "body omitted because"
+msgstr "corpo non salvato perché"
+
+#: models.py:53
+msgid "context"
+msgstr "contesto"
+
+#: models.py:56 models.py:102
+msgid "email log"
+msgstr "log della mail"
+
+#: models.py:57
+msgid "email logs"
+msgstr "log delle mail"
+
+#: models.py:62
+msgid "(no subject)"
+msgstr "(nessun oggetto)"
+
+#: models.py:68
+msgid "only a failed message can be sent again"
+msgstr "solo un messaggio fallito può essere rispedito"
+
+#: models.py:70
+msgid "its body was not stored"
+msgstr "il suo corpo non è stato salvato"
+
+#: models.py:72
+msgid "its attachments were not stored"
+msgstr "i suoi allegati non sono stati salvati"
+
+#: models.py:93
+msgid "Initial send"
+msgstr "Invio iniziale"
+
+#: models.py:94
+msgid "Retry from the admin"
+msgstr "Rispedito dall'admin"
+
+#: models.py:95
+msgid "Retry from a management command"
+msgstr "Rispedito da un comando"
+
+#: models.py:96
+msgid "Retry from code"
+msgstr "Rispedito da codice"
+
+#: models.py:104
+msgid "started at"
+msgstr "iniziato il"
+
+#: models.py:106
+msgid "trigger"
+msgstr "origine"
+
+#: models.py:108 models.py:117
+msgid "succeeded"
+msgstr "riuscito"
+
+#: models.py:109
+msgid "error"
+msgstr "errore"
+
+#: models.py:112
+msgid "send attempt"
+msgstr "tentativo di invio"
+
+#: models.py:113
+msgid "send attempts"
+msgstr "tentativi di invio"
+
+#: models.py:117
+msgid "failed"
+msgstr "fallito"
+
+msgid "retention"
+msgstr "conservazione"
+
+msgid "Older than the retention window"
+msgstr "Più vecchi della finestra di conservazione"
+
+msgid "%(count)d sent again."
+msgstr "%(count)d rispediti."
+
+msgid "%(count)d failed again."
+msgstr "%(count)d falliti di nuovo."
+
+msgid "%(count)d skipped: %(reason)s"
+msgstr "%(count)d saltati: %(reason)s"
