@@ -5,8 +5,14 @@ from typing import Any
 from requests import PreparedRequest, Response
 
 from ..conf import get_setting
-from .models import BodyOmission, HttpRequestLog
-from .redaction import redact
+from ..text import clean, fit
+from .models import (
+    METHOD_MAX_LENGTH,
+    REASON_MAX_LENGTH,
+    BodyOmission,
+    HttpRequestLog,
+)
+from .redaction import redact, redact_url
 
 
 def record_response(
@@ -57,12 +63,18 @@ def describe_request(
 ) -> dict[str, Any]:
     """What was really sent, or just method and url when nothing was prepared."""
     if prepared is None:
-        return {"method": method, "url": url}
+        # Nothing was prepared, so nothing can be replayed faithfully: say so,
+        # or the retry would send the request stripped of its body.
+        return {
+            "method": fit(method, METHOD_MAX_LENGTH),
+            "url": redact_url(url),
+            "request_body_omission": BodyOmission.UNPREPARED,
+        }
 
     body, omission = capture_request_body(prepared.body)
     return {
-        "method": prepared.method or method,
-        "url": prepared.url or url,
+        "method": fit(prepared.method or method, METHOD_MAX_LENGTH),
+        "url": redact_url(prepared.url or url),
         "request_headers": redact(prepared.headers),
         "request_body": body,
         "request_body_omission": omission,
@@ -73,7 +85,7 @@ def describe_response(response: Response, streamed: bool) -> dict[str, Any]:
     body, omission, truncated = capture_response_body(response, streamed)
     return {
         "status_code": response.status_code,
-        "reason": response.reason or "",
+        "reason": fit(response.reason or "", REASON_MAX_LENGTH),
         "response_headers": redact(response.headers),
         "response_body": body,
         "response_body_omission": omission,
@@ -94,7 +106,7 @@ def capture_request_body(raw: Any) -> tuple[str, str]:
     if len(data) > get_setting("MAX_BODY_BYTES"):
         return "", BodyOmission.TOO_LARGE
     try:
-        return data.decode("utf-8"), ""
+        return clean(data.decode("utf-8")), ""
     except UnicodeDecodeError:
         return "", BodyOmission.BINARY
 
@@ -114,6 +126,7 @@ def capture_response_body(response: Response, streamed: bool) -> tuple[str, str,
     data = response.content[:max_bytes]
     try:
         # The cut can land inside a character: only then are stray bytes dropped.
-        return data.decode("utf-8", "ignore" if truncated else "strict"), "", truncated
+        text = data.decode("utf-8", "ignore" if truncated else "strict")
+        return clean(text), "", truncated
     except UnicodeDecodeError:
         return "", BodyOmission.BINARY, False
