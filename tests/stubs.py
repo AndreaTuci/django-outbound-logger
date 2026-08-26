@@ -2,6 +2,7 @@
 
 import requests
 from requests.adapters import BaseAdapter
+from requests.exceptions import RequestException
 from requests.models import Response
 
 DEFAULT_CONTENT = b'{"ok": true}'
@@ -16,11 +17,15 @@ class StubAdapter(BaseAdapter):
         self.headers = DEFAULT_HEADERS if headers is None else headers
         self.error = error
         self.received = []
+        self.options = []
 
     def send(self, request, **kwargs):
         self.received.append(request)
+        self.options.append(kwargs)
         if self.error:
-            raise self.error("the stub refused the connection", request=request)
+            if issubclass(self.error, RequestException):
+                raise self.error("the stub refused the connection", request=request)
+            raise self.error("the stub broke before preparing anything")
 
         response = Response()
         response.status_code = self.status_code

@@ -4,7 +4,8 @@ from django.test import TestCase, TransactionTestCase, override_settings
 
 from outbound_logger.conf import ROUTER, check_settings
 from outbound_logger.mail.models import EmailLog
-from outbound_logger.routers import OutboundLoggerRouter
+from outbound_logger.http.models import HttpRequestLog
+from outbound_logger.routers import APP_LABELS, OutboundLoggerRouter
 
 from .base import LOCMEM, LOGGING_BACKEND
 
@@ -35,6 +36,13 @@ class RoutingTests(TestCase):
 
         log = EmailLog.objects.get()
         self.assertEqual(log.attempts.count(), 1)
+
+    def test_the_router_knows_the_app_labels_that_exist(self):
+        """A renamed app label would leave the router quietly routing nothing."""
+        self.assertEqual(
+            APP_LABELS,
+            {EmailLog._meta.app_label, HttpRequestLog._meta.app_label},
+        )
 
     def test_only_the_logs_are_migrated_there(self):
         router = OutboundLoggerRouter()

@@ -18,7 +18,9 @@ class EmailLogAdminTests(MailTestCase):
 
     def setUp(self):
         self.client.force_login(self.staff)
-        mail.send_mail("Subject", "Body", "from@example.com", ["someone@example.com"])
+        mail.send_mail(
+            "Subject", "the body itself", "from@example.com", ["someone@example.com"]
+        )
         self.log = EmailLog.objects.get()
 
     def test_the_changelist_lists_the_log(self):
@@ -41,8 +43,17 @@ class EmailLogAdminTests(MailTestCase):
 
         response = self.client.get(url)
 
-        self.assertContains(response, "Body")
+        self.assertContains(response, "the body itself")  # the value, not the label
         self.assertNotContains(response, 'name="subject"')
+
+    def test_the_change_page_refuses_a_post(self):
+        url = reverse("admin:outbound_mail_emaillog_change", args=[self.log.pk])
+
+        response = self.client.post(url, {"subject": "rewritten"})
+
+        self.assertEqual(response.status_code, 403)
+        self.log.refresh_from_db()
+        self.assertEqual(self.log.subject, "Subject")
 
 
 class HttpRequestLogAdminTests(MailTestCase):
@@ -59,7 +70,8 @@ class HttpRequestLogAdminTests(MailTestCase):
         session = LoggedSession()
         session.mount("https://", StubAdapter())
         session.get("https://api.example.com/things")
-        self.log = HttpRequestLog.objects.get()
+        session.get("https://api.example.com/unrelated")
+        self.log = HttpRequestLog.objects.filter(url__endswith="things").get()
 
     def test_the_changelist_lists_the_call(self):
         response = self.client.get(self.changelist_url)
@@ -67,14 +79,15 @@ class HttpRequestLogAdminTests(MailTestCase):
         self.assertContains(response, "api.example.com/things")
 
     def test_the_search_finds_a_call_by_url(self):
-        response = self.client.get(self.changelist_url, {"q": "api.example.com"})
+        response = self.client.get(self.changelist_url, {"q": "unrelated"})
 
-        self.assertContains(response, "GET")
+        self.assertContains(response, "api.example.com/unrelated")
+        self.assertNotContains(response, "api.example.com/things")
 
     def test_the_detail_page_is_read_only(self):
         url = reverse("admin:outbound_http_httprequestlog_change", args=[self.log.pk])
 
         response = self.client.get(url)
 
-        self.assertContains(response, "ok")
+        self.assertContains(response, "&quot;ok&quot;: true")  # the response body
         self.assertNotContains(response, 'name="url"')

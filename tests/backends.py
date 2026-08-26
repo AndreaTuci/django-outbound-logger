@@ -25,3 +25,16 @@ class SilentBackend(BaseEmailBackend):
 
     def send_messages(self, email_messages):
         return 0
+
+
+class UnclosableBackend(BaseEmailBackend):
+    """Sends fine, then raises on the way out, like a server erroring on QUIT."""
+
+    def open(self):
+        return True
+
+    def send_messages(self, email_messages):
+        return len(email_messages)
+
+    def close(self):
+        raise SMTPException(FAILURE_MESSAGE)

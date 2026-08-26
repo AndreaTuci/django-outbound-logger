@@ -79,11 +79,15 @@ class ContextTests(MailTestCase):
         self.assertEqual(EmailLog.objects.get().context, {"contact_id": 12})
         self.assertIsNone(mail.outbox[0].message()[CONTEXT_HEADER])
 
-    def test_a_malformed_context_header_is_refused(self):
+    def test_a_malformed_context_header_does_not_stop_the_message(self):
+        """The logger is never the reason a message fails to go out."""
         message = build_message(headers={CONTEXT_HEADER: "not json"})
 
-        with self.assertRaises(ValueError):
+        with self.assertLogs("outbound_logger.mail.backends", level="ERROR"):
             message.send()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(EmailLog.objects.count(), 0)
 
 
 @override_settings(OUTBOUND_LOGGER={"MAIL_BACKEND": LOCMEM, "STORE_BODY": False})
