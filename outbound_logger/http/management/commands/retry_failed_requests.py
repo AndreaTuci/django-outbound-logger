@@ -1,83 +1,35 @@
-from datetime import timedelta
 from typing import Any
 
-from django.core.management.base import BaseCommand, CommandParser
-from django.db.models import QuerySet
-from django.db.models import Count, Q
-from django.utils import timezone
+from django.core.management.base import CommandParser
+from django.db.models import Q, QuerySet
 
+from ....commands import RetryLogsCommand
 from ...models import HttpRequestAttempt, HttpRequestLog
 from ...retry import SERVER_ERROR, retry_requests
 
 
-class Command(BaseCommand):
+class Command(RetryLogsCommand):
     help = "Send failed requests again. Only retriable ones are considered."
+    model = HttpRequestLog
+    trigger = HttpRequestAttempt.Trigger.COMMAND
+    succeeded_line = "{count} request(s) answered."
 
     def add_arguments(self, parser: CommandParser) -> None:
-        parser.add_argument(
-            "--since",
-            type=int,
-            metavar="DAYS",
-            help="only requests logged in the last DAYS days",
-        )
-        parser.add_argument(
-            "--max-attempts",
-            type=int,
-            metavar="N",
-            help="skip requests already tried N times or more",
-        )
+        super().add_arguments(parser)
         parser.add_argument(
             "--include-server-errors",
             action="store_true",
             help=f"also retry the ones answered with {SERVER_ERROR} or above",
         )
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="list what would be sent again, send nothing",
-        )
 
-    def handle(self, *args: Any, **options: Any) -> None:
-        logs = list(
-            select_logs(
-                options["since"],
-                options["max_attempts"],
-                options["include_server_errors"],
-            )
-        )
+    def candidates(self, **options: Any) -> QuerySet:
+        unanswered = Q(status=HttpRequestLog.Status.FAILED)
+        if options["include_server_errors"]:
+            unanswered |= Q(status_code__gte=SERVER_ERROR)
+        return HttpRequestLog.objects.filter(retriable=True).filter(unanswered)
 
-        if options["dry_run"]:
-            for log in logs:
-                self.stdout.write(f"{log.pk}\t{log.status_code or '---'}\t{log}")
-            self.stdout.write(f"{len(logs)} request(s) would be sent again.")
-            return
+    def retry(self, logs, trigger):
+        return retry_requests(logs, trigger=trigger)
 
-        report = retry_requests(logs, trigger=HttpRequestAttempt.Trigger.COMMAND)
-        self.stdout.write(
-            self.style.SUCCESS(f"{len(report.succeeded)} request(s) answered.")
-        )
-        if report.failed:
-            self.stdout.write(self.style.ERROR(f"{len(report.failed)} failed again."))
-        for log, reason in report.skipped:
-            self.stdout.write(self.style.WARNING(f"{log.pk} skipped: {reason}"))
-
-
-def select_logs(
-    since_days: int | None, max_attempts: int | None, include_server_errors: bool
-) -> QuerySet:
-    unanswered = Q(status=HttpRequestLog.Status.FAILED)
-    if include_server_errors:
-        unanswered |= Q(status_code__gte=SERVER_ERROR)
-
-    logs = (
-        HttpRequestLog.objects.filter(retriable=True)
-        .filter(unanswered)
-        .order_by("created_at")
-    )
-    if since_days is not None:
-        logs = logs.filter(created_at__gte=timezone.now() - timedelta(days=since_days))
-    if max_attempts is not None:
-        logs = logs.annotate(attempt_count=Count("attempts")).filter(
-            attempt_count__lt=max_attempts
-        )
-    return logs
+    def describe(self, log: HttpRequestLog) -> str:
+        return f"{log.pk}\t{log.status_code or '---'}\t{log}"
