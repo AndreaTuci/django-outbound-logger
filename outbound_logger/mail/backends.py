@@ -1,5 +1,6 @@
 """The email backend that logs, then delegates to the one that really sends."""
 
+import logging
 from typing import Any
 
 import django
@@ -17,6 +18,8 @@ from .models import EmailSendAttempt
 # Passing alias=None asks for the settings-driven behaviour without the warning;
 # older versions ignore the keyword.
 SUPPORTS_ALIAS = django.VERSION >= (6, 1)
+
+logger = logging.getLogger(__name__)
 
 
 def build_delegate(**options: Any) -> BaseEmailBackend:
@@ -51,7 +54,10 @@ class LoggingEmailBackend(BaseEmailBackend):
     def __init__(
         self, fail_silently: bool = False, *, alias: str | None = None, **options: Any
     ) -> None:
-        super().__init__(alias=alias)
+        # Django hands its own private keywords (_ignore_unknown_kwargs) down with
+        # the connection options: they belong to the base class, not to the delegate.
+        private = {name: options.pop(name) for name in list(options) if name.startswith("_")}
+        super().__init__(alias=alias, **private)
         # Set here rather than left to the base class: Django 6.1 deprecated its
         # own fail_silently and asks subclasses to own the attribute.
         self.fail_silently = fail_silently
@@ -66,10 +72,18 @@ class LoggingEmailBackend(BaseEmailBackend):
     def send_messages(self, email_messages: list[EmailMessage]) -> int:
         # Logged before the connection is opened: a mail server that is down must
         # leave rows behind, not a hole.
-        pairs = [(message, create_log(message)) for message in email_messages]
+        pairs = [(message, self.log_message(message)) for message in email_messages]
         return send_and_record(
             self.delegate,
             pairs,
             trigger=EmailSendAttempt.Trigger.SEND,
             fail_silently=self.fail_silently,
         )
+
+    def log_message(self, message: EmailMessage) -> Any:
+        """A message this package cannot record still has to go out."""
+        try:
+            return create_log(message)
+        except Exception:
+            logger.exception("could not log a message; sending it unlogged")
+            return None

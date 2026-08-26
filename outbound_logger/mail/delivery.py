@@ -1,13 +1,18 @@
 """Send messages on one connection, recording the outcome of each on its log."""
 
+import logging
 import traceback
+from typing import Sequence
 
 from django.core.mail import EmailMessage
 from django.core.mail.backends.base import BaseEmailBackend
 
 from .models import EmailLog
 
-Pairs = list[tuple[EmailMessage, EmailLog]]
+# A pair carries no log when the message could not be recorded: it is sent anyway.
+Pairs = Sequence[tuple[EmailMessage, EmailLog | None]]
+
+logger = logging.getLogger(__name__)
 
 NOTHING_SENT = "The backend accepted the message but reported nothing sent."
 
@@ -28,7 +33,8 @@ def send_and_record(
     except Exception:
         error = traceback.format_exc()
         for _message, log in pairs:
-            log.mark_failed(error, trigger=trigger)
+            if log is not None:
+                log.mark_failed(error, trigger=trigger)
         if not fail_silently:
             raise
         return 0
@@ -37,7 +43,15 @@ def send_and_record(
         return deliver(delegate, pairs, trigger, fail_silently)
     finally:
         if new_connection:
-            delegate.close()
+            close(delegate)
+
+
+def close(delegate: BaseEmailBackend) -> None:
+    """Closing is cleanup: its failure is worth a log, never worth losing a send."""
+    try:
+        delegate.close()
+    except Exception:
+        logger.exception("could not close the connection to the mail server")
 
 
 def deliver(
@@ -49,14 +63,18 @@ def deliver(
         try:
             delivered = delegate.send_messages([message])
         except Exception:
-            log.mark_failed(traceback.format_exc(), trigger=trigger)
+            if log is not None:
+                log.mark_failed(traceback.format_exc(), trigger=trigger)
             if not fail_silently:
                 raise
             continue
 
         if delivered:
-            log.mark_sent(trigger=trigger)
             sent += 1
+        if log is None:
+            continue
+        if delivered:
+            log.mark_sent(trigger=trigger)
         else:
             log.mark_failed(NOTHING_SENT, trigger=trigger)
     return sent
