@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "django-outbound-logger"
-version = "0.1.0"
+version = "0.2.0"
 description = "Log outgoing email and HTTP requests to the database, with their outcome and a retry."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -59,3 +59,9 @@ include = [
     "LICENSE",
     "pyproject.toml",
 ]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["outbound_logger"]
+exclude = "migrations"
+ignore_missing_imports = true

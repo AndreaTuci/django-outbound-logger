@@ -186,6 +186,33 @@ python manage.py purge_http_logs --dry-run
 or from the admin: filter by *Retention → Older than the retention window*,
 select all, and use Django's own delete action.
 
+## Keeping the log out of your transactions
+
+A log is written on the connection the caller is using. If that caller is inside
+a `transaction.atomic()` block that later rolls back, the message has gone out
+but its row goes away with everything else — the one case where the log lies.
+
+Give the logs a connection of their own and they stop caring what the caller
+does:
+
+```python
+DATABASES = {
+    "default": {...},
+    "logs": {...},          # the same database is fine: what matters is the second connection
+}
+DATABASE_ROUTERS = ["outbound_logger.routers.OutboundLoggerRouter"]
+OUTBOUND_LOGGER = {"DATABASE": "logs"}
+```
+
+```bash
+python manage.py migrate --database=logs
+```
+
+The router keeps the two log tables on that alias and every other table off it.
+Neither log has a foreign key into your models, so nothing is torn in half by
+the split. Setting the alias without adding the router is reported by
+`manage.py check` rather than silently doing nothing.
+
 ## Settings
 
 Everything lives in one dict. A key that is not on this list is reported by
@@ -202,6 +229,7 @@ Everything lives in one dict. A key that is not on this list is reported by
 | `HTTP_REDACT_HEADERS` | `Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `X-Auth-Token` | Header values replaced before storing. |
 | `HTTP_SESSION_FACTORY` | `None` | Dotted path to a callable returning the session a replay is prepared on. |
 | `HTTP_RETRY_TIMEOUT` | `30` | Seconds a replayed request waits. |
+| `DATABASE` | `None` | Alias the logs live on, with the router in `DATABASE_ROUTERS`. |
 
 ## Two things worth knowing
 
@@ -212,6 +240,15 @@ happen after that and this package never sees them.
 `EMAIL_BACKEND` with the locmem backend, which is what you want: your test suite
 should not be filling a table. Point it back at the logging backend with
 `@override_settings` in the few tests that are about the logging itself.
+
+## Translations and types
+
+The admin labels and messages are translated into Italian; every string is
+marked, so another language is a catalogue away.
+
+The package is annotated but does not ship `py.typed` yet. A type checker cannot
+see a `TextChoices` member whose label is a lazy translation as anything but a
+tuple, so claiming the package checks clean would not be true.
 
 ## The example project
 

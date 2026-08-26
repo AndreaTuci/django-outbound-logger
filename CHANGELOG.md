@@ -3,6 +3,22 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project follows [semantic versioning](https://semver.org/).
 
+## [0.2.0] - 2026-08-26
+
+### Added
+
+- `OUTBOUND_LOGGER["DATABASE"]` and `outbound_logger.routers.OutboundLoggerRouter`:
+  the logs can live on a database connection of their own, so a rollback in the
+  caller's transaction no longer erases the log of a message that really went
+  out. `manage.py check` reports the alias without the router.
+- Italian translation of the admin labels and messages.
+- Type annotations across the package. The distribution does not ship `py.typed`
+  yet: see the note in the readme.
+
+### Fixed
+
+- Two strings were invisible to `makemessages` because they sat inside f-strings.
+
 ## [0.1.0] - 2026-08-25
 
 First release.
@@ -28,4 +44,5 @@ First release.
 - Read-only admin for both logs, with the attempts alongside.
 - `manage.py check` reports a misspelled or contradictory setting.
 
+[0.2.0]: https://github.com/AndreaTuci/django-outbound-logger/releases/tag/v0.2.0
 [0.1.0]: https://github.com/AndreaTuci/django-outbound-logger/releases/tag/v0.1.0
