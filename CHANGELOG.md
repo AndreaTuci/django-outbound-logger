@@ -3,6 +3,19 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project follows [semantic versioning](https://semver.org/).
 
+## [0.3.1] - 2026-08-26
+
+### Fixed
+
+- The readme showed `send_mail(..., headers=...)`, which raises `TypeError`:
+  `send_mail()` takes no headers. The example now builds an `EmailMessage`.
+- The readme and the example readme were behind the code on a few counts.
+
+### Changed
+
+- Internal only: one base for the two retry commands, the attempts column moved
+  to the shared admin, the stored MIME parsed once per retry instead of twice.
+
 ## [0.3.0] - 2026-08-26
 
 An adversarial review of 0.2.0. Nothing here changes how the package is set up,
@@ -89,6 +102,7 @@ First release.
 - Read-only admin for both logs, with the attempts alongside.
 - `manage.py check` reports a misspelled or contradictory setting.
 
+[0.3.1]: https://github.com/AndreaTuci/django-outbound-logger/releases/tag/v0.3.1
 [0.3.0]: https://github.com/AndreaTuci/django-outbound-logger/releases/tag/v0.3.0
 [0.2.0]: https://github.com/AndreaTuci/django-outbound-logger/releases/tag/v0.2.0
 [0.1.0]: https://github.com/AndreaTuci/django-outbound-logger/releases/tag/v0.1.0
