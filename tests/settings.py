@@ -3,7 +3,11 @@
 SECRET_KEY = "django-outbound-logger-tests"
 USE_TZ = True
 
-DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
+DATABASES = {
+    "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"},
+    # A second connection, for the tests about the router.
+    "logs": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"},
+}
 
 INSTALLED_APPS = [
     "django.contrib.admin",

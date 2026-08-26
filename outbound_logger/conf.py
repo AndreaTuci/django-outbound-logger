@@ -1,11 +1,14 @@
 """The OUTBOUND_LOGGER setting: defaults, access and validation."""
 
+from typing import Any
+
 from django.conf import settings
-from django.core.checks import Error
+from django.core.checks import CheckMessage, Error
 from django.core.checks import Warning as CheckWarning
 from django.core.exceptions import ImproperlyConfigured
 
 SETTING_NAME = "OUTBOUND_LOGGER"
+ROUTER = "outbound_logger.routers.OutboundLoggerRouter"
 LOGGING_MAIL_BACKEND = "outbound_logger.mail.backends.LoggingEmailBackend"
 DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024
 DEFAULT_RETENTION_DAYS = 90
@@ -19,7 +22,7 @@ DEFAULT_REDACT_HEADERS = (
     "X-Auth-Token",
 )
 
-DEFAULTS = {
+DEFAULTS: dict[str, Any] = {
     # The real backend messages are delegated to, as a dotted path.
     "MAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
     # Keyword arguments for it, when it cannot read its own settings.
@@ -40,25 +43,29 @@ DEFAULTS = {
     "HTTP_SESSION_FACTORY": None,
     # Seconds a retried request waits before giving up.
     "HTTP_RETRY_TIMEOUT": DEFAULT_RETRY_TIMEOUT,
+    # Database alias the logs live on, through the router. A second connection to
+    # the same database is enough, and keeps the logs out of the caller's
+    # transaction.
+    "DATABASE": None,
 }
 
 
-def get_setting(name):
+def get_setting(name: str) -> Any:
     """Return one OUTBOUND_LOGGER value, falling back to the packaged default."""
     if name not in DEFAULTS:
         raise ImproperlyConfigured(f"{SETTING_NAME} has no setting named {name!r}.")
     return getattr(settings, SETTING_NAME, {}).get(name, DEFAULTS[name])
 
 
-def is_set(name):
+def is_set(name: str) -> bool:
     """True when the project spells the setting out, whatever its value."""
     return name in getattr(settings, SETTING_NAME, {})
 
 
-def check_settings(app_configs, **kwargs):
+def check_settings(app_configs: Any, **kwargs: Any) -> list[CheckMessage]:
     """A misspelled setting is silently ignored otherwise, which is worse than loud."""
     unknown = sorted(set(getattr(settings, SETTING_NAME, {})) - set(DEFAULTS))
-    problems = [
+    problems: list[CheckMessage] = [
         Error(
             f"Unknown {SETTING_NAME} setting {name!r}.",
             hint=f"Known settings: {', '.join(sorted(DEFAULTS))}.",
@@ -85,6 +92,8 @@ def check_settings(app_configs, **kwargs):
             )
         )
 
+    problems += check_database(get_setting("DATABASE"))
+
     if hasattr(settings, "MAILERS") and not get_setting("MAIL_MAILER"):
         problems.append(
             CheckWarning(
@@ -98,3 +107,32 @@ def check_settings(app_configs, **kwargs):
         )
 
     return problems
+
+
+def check_database(alias: str | None) -> list[CheckMessage]:
+    """A log database nobody routes to is a setting that quietly does nothing."""
+    if not alias:
+        return []
+
+    if alias not in settings.DATABASES:
+        return [
+            Error(
+                f"DATABASE names {alias!r}, which is not one of the DATABASES.",
+                hint="Add the alias to DATABASES, pointing at the same database.",
+                id="outbound_logger.E004",
+            )
+        ]
+
+    if ROUTER not in getattr(settings, "DATABASE_ROUTERS", []):
+        return [
+            CheckWarning(
+                f"DATABASE names {alias!r} but nothing routes the logs to it.",
+                hint=(
+                    f"Add {ROUTER!r} to DATABASE_ROUTERS. If you subclassed the "
+                    "router, silence this check instead."
+                ),
+                id="outbound_logger.W002",
+            )
+        ]
+
+    return []
