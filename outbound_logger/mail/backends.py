@@ -15,8 +15,8 @@ from .delivery import send_and_record
 from .models import EmailSendAttempt
 
 # Django 6.1 warns when a built-in backend is built without an `alias` keyword.
-# Passing alias=None asks for the settings-driven behaviour without the warning;
-# older versions ignore the keyword.
+# Passing alias=None asks for the settings-driven behaviour without the warning.
+# Older versions have no use for it, and a backend written for them may refuse it.
 SUPPORTS_ALIAS = django.VERSION >= (6, 1)
 
 logger = logging.getLogger(__name__)

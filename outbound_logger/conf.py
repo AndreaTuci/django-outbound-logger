@@ -11,9 +11,6 @@ from django.core.exceptions import ImproperlyConfigured
 SETTING_NAME = "OUTBOUND_LOGGER"
 ROUTER = "outbound_logger.routers.OutboundLoggerRouter"
 LOGGING_MAIL_BACKEND = "outbound_logger.mail.backends.LoggingEmailBackend"
-DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024
-DEFAULT_RETENTION_DAYS = 90
-DEFAULT_RETRY_TIMEOUT = 30
 DEFAULT_REDACT_HEADERS = (
     "Authorization",
     "Proxy-Authorization",
@@ -33,17 +30,17 @@ DEFAULTS: dict[str, Any] = {
     # Store the message body and its MIME bytes, or only the metadata.
     "STORE_BODY": True,
     # Above this size the MIME bytes are dropped: no retry for that message.
-    "MAX_BODY_BYTES": DEFAULT_MAX_BODY_BYTES,
+    "MAX_BODY_BYTES": 5 * 1024 * 1024,
     # How long a log is kept, for the purge to act on. Nothing is deleted until
     # the purge is called: from the admin, from the command or from a task.
-    "RETENTION_DAYS": DEFAULT_RETENTION_DAYS,
+    "RETENTION_DAYS": 90,
     # Request and response headers whose value is replaced before it is stored.
     "HTTP_REDACT_HEADERS": DEFAULT_REDACT_HEADERS,
     # Dotted path to a callable returning a configured requests.Session. The retry
     # prepares on top of it, so the credentials the log does not hold come back.
     "HTTP_SESSION_FACTORY": None,
     # Seconds a retried request waits before giving up.
-    "HTTP_RETRY_TIMEOUT": DEFAULT_RETRY_TIMEOUT,
+    "HTTP_RETRY_TIMEOUT": 30,
     # Database alias the logs live on, through the router. A second connection to
     # the same database is enough, and keeps the logs out of the caller's
     # transaction.

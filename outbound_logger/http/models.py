@@ -81,10 +81,6 @@ class HttpRequestLog(models.Model):
     def __str__(self) -> str:
         return f"{self.method} {self.url}"
 
-    @property
-    def is_error(self) -> bool:
-        return self.status == self.Status.FAILED or (self.status_code or 0) >= 400
-
     def why_not_retriable(self) -> str:
         """What keeps this request from being sent again, or "" when nothing does."""
         if not self.retriable:

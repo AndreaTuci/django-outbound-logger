@@ -14,7 +14,7 @@ def retry_emails(
 ) -> RetryReport:
     """Send every retriable log again on one connection, and say how it went.
 
-    Nothing is raised: a log that cannot be rebuilt lands in `skipped` with its
+    Nothing is raised: a log that cannot be sent again lands in `skipped` with its
     reason, one that goes out again in `succeeded`, one that fails again in
     `failed` with the error recorded as a new attempt.
     """

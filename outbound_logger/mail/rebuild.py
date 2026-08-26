@@ -5,9 +5,8 @@ from typing import Any
 
 from django.core.mail import EmailMultiAlternatives
 
+from .capture import HTML_MIMETYPE
 from .models import EmailLog
-
-HTML_MIMETYPE = "text/html"
 
 
 def rebuild_message(log: EmailLog) -> EmailMultiAlternatives:
@@ -18,6 +17,7 @@ def rebuild_message(log: EmailLog) -> EmailMultiAlternatives:
     because backends that talk to an API instead of an SMTP server read the
     fields, not the MIME.
     """
+    parsed = parse(log.raw_message)
     message = EmailMultiAlternatives(
         subject=log.subject,
         body=log.body or log.html_body,
@@ -37,21 +37,27 @@ def rebuild_message(log: EmailLog) -> EmailMultiAlternatives:
 
     # The fields hold the HTML one exactly; anything else - a calendar invitation,
     # say - only exists in the stored MIME.
-    for content, mimetype in extract_alternatives(log.raw_message):
+    for content, mimetype in extract_alternatives(parsed):
         if mimetype != HTML_MIMETYPE:
             message.attach_alternative(content, mimetype)
 
-    for filename, content, content_type in extract_attachments(log.raw_message):
+    for filename, content, content_type in extract_attachments(parsed):
         message.attach(filename, content, content_type)
     return message
 
 
-def extract_alternatives(raw_message: bytes | None) -> list[tuple[Any, str]]:
-    """Every alternative of the stored MIME but the plain body."""
+def parse(raw_message: bytes | None) -> Any:
+    """The stored MIME, read once for whoever needs a part of it."""
     if raw_message is None:
+        return None
+    return message_from_bytes(bytes(raw_message), policy=policy.default)
+
+
+def extract_alternatives(parsed: Any) -> list[tuple[Any, str]]:
+    """Every alternative of the stored MIME but the plain body."""
+    if parsed is None:
         return []
 
-    parsed = message_from_bytes(bytes(raw_message), policy=policy.default)
     plain = parsed.get_body(preferencelist=("plain",))
     return [
         (part.get_content(), part.get_content_type())
@@ -67,11 +73,10 @@ def alternative_parts(parsed: Any) -> list[Any]:
     return []
 
 
-def extract_attachments(raw_message: bytes | None) -> list[tuple[str, Any, str]]:
-    if raw_message is None:
+def extract_attachments(parsed: Any) -> list[tuple[str, Any, str]]:
+    if parsed is None:
         return []
 
-    parsed = message_from_bytes(bytes(raw_message), policy=policy.default)
     return [
         (part.get_filename() or "", part.get_content(), part.get_content_type())
         for part in parsed.iter_attachments()
