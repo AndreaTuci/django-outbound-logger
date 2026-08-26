@@ -5,6 +5,7 @@ from requests.adapters import BaseAdapter
 from requests.exceptions import RequestException
 from requests.models import Response
 
+URL = "https://api.example.com/things"
 DEFAULT_CONTENT = b'{"ok": true}'
 DEFAULT_HEADERS = {"Content-Type": "application/json", "Set-Cookie": "session=secret"}
 
@@ -40,10 +41,19 @@ class StubAdapter(BaseAdapter):
         pass
 
 
-def build_stub_session():
+def build_session(adapter=None, **options):
+    """A logged session answered by a stub instead of the network."""
+    from outbound_logger.http.session import LoggedSession
+
+    session = LoggedSession(**options)
+    session.mount("https://", adapter or StubAdapter())
+    return session
+
+
+def build_stub_session(adapter=None):
     """What OUTBOUND_LOGGER["HTTP_SESSION_FACTORY"] points at in the tests:
     a session that carries credentials and never touches the network."""
     session = requests.Session()
     session.headers["Authorization"] = "Bearer the-real-one"
-    session.mount("https://", StubAdapter())
+    session.mount("https://", adapter or StubAdapter())
     return session

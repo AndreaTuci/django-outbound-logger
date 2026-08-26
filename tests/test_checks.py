@@ -2,7 +2,7 @@ from django.test import SimpleTestCase, override_settings
 
 from outbound_logger.conf import check_settings
 
-LOCMEM = "django.core.mail.backends.locmem.EmailBackend"
+from .base import LOCMEM
 
 
 def check_ids():

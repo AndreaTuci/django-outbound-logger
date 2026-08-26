@@ -11,19 +11,7 @@ from outbound_logger.mail.models import EmailLog, EmailSendAttempt
 from outbound_logger.mail.rebuild import rebuild_message
 from outbound_logger.mail.retry import retry_emails
 
-from .base import LOCMEM, MailTestCase
-
-EXPLODING = "tests.backends.ExplodingBackend"
-HTML = "<p>Hello</p>"
-
-
-def build_message(**kwargs):
-    kwargs.setdefault("subject", "Subject")
-    kwargs.setdefault("body", "Body")
-    kwargs.setdefault("from_email", "from@example.com")
-    kwargs.setdefault("to", ["to@example.com"])
-    return mail.EmailMultiAlternatives(**kwargs)
-
+from .base import EXPLODING, HTML, LOCMEM, MailTestCase, build_message
 
 def fail_one(message=None, **settings):
     """Send a message through a backend that refuses it, and return its log."""

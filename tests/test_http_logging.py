@@ -4,17 +4,8 @@ from django.test import TestCase, override_settings
 
 from outbound_logger.http.models import BodyOmission, HttpRequestAttempt, HttpRequestLog
 from outbound_logger.http.redaction import REDACTED
-from outbound_logger.http.session import LoggedSession
 
-from .stubs import StubAdapter
-
-URL = "https://api.example.com/things"
-
-
-def build_session(adapter=None, **session_options):
-    session = LoggedSession(**session_options)
-    session.mount("https://", adapter or StubAdapter())
-    return session
+from .stubs import URL, StubAdapter, build_session
 
 
 class RequestLoggingTests(TestCase):

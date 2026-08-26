@@ -15,36 +15,18 @@ from requests.exceptions import ConnectionError
 
 from outbound_logger.conf import ROUTER, check_settings
 from outbound_logger.http.models import BodyOmission, HttpRequestLog
-from outbound_logger.http.session import LoggedSession
 from outbound_logger.mail.capture import describe_attachment
 from outbound_logger.mail.models import SUBJECT_MAX_LENGTH, EmailLog
 from outbound_logger.http.retry import retry_requests
 from outbound_logger.mail.retry import retry_emails
 from outbound_logger.routers import OutboundLoggerRouter
 
-from .base import LOCMEM, LOGGING_BACKEND, MailTestCase
-from .stubs import StubAdapter, build_stub_session
-
-URL = "https://api.example.com/things"
-EXPLODING = "tests.backends.ExplodingBackend"
+from .base import EXPLODING, LOCMEM, LOGGING_BACKEND, MailTestCase, build_message
+from .stubs import URL, StubAdapter, build_session, build_stub_session
 
 
 class BareFailure(Exception):
     """An error carrying no .request, as anything but requests would raise."""
-
-
-def build_message(**kwargs):
-    kwargs.setdefault("subject", "Subject")
-    kwargs.setdefault("body", "Body")
-    kwargs.setdefault("from_email", "from@example.com")
-    kwargs.setdefault("to", ["to@example.com"])
-    return mail.EmailMultiAlternatives(**kwargs)
-
-
-def logged_session(adapter=None, **options):
-    session = LoggedSession(**options)
-    session.mount("https://", adapter or StubAdapter())
-    return session
 
 
 class TheLoggerNeverStopsTheMailTests(MailTestCase):
@@ -105,14 +87,14 @@ class ColumnTests(MailTestCase):
         self.assertEqual(len(EmailLog.objects.get().subject), SUBJECT_MAX_LENGTH)
 
     def test_a_nul_byte_never_reaches_the_database(self):
-        logged_session(StubAdapter(content=b'{"a\x00b": 1}')).get(URL)
+        build_session(StubAdapter(content=b'{"a\x00b": 1}')).get(URL)
 
         self.assertEqual(HttpRequestLog.objects.get().response_body, '{"ab": 1}')
 
 
 class WhatCannotBeReplayedTests(TestCase):
     def test_a_request_that_was_never_prepared_is_not_retriable(self):
-        session = logged_session(StubAdapter(error=BareFailure))
+        session = build_session(StubAdapter(error=BareFailure))
 
         with self.assertRaises(BareFailure):
             session.put(URL, data="a body that is now lost")
@@ -124,13 +106,13 @@ class WhatCannotBeReplayedTests(TestCase):
     def test_a_replayed_post_is_not_downgraded_by_a_redirect(self):
         """Following it would turn the POST into a bodyless GET, and its 200 would
         hide the failure being retried."""
-        logged_session(retriable=True).post(URL, json={"name": "thing"})
+        build_session(retriable=True).post(URL, json={"name": "thing"})
         log = HttpRequestLog.objects.get()
         redirecting = StubAdapter(
             status_code=302, headers={"Location": "https://api.example.com/elsewhere"}
         )
 
-        report = retry_requests([log], session=build_stub_session_with(redirecting))
+        report = retry_requests([log], session=build_stub_session(redirecting))
 
         self.assertEqual(len(redirecting.received), 1)  # not followed
         self.assertEqual(report.succeeded, [log])
@@ -138,15 +120,9 @@ class WhatCannotBeReplayedTests(TestCase):
         self.assertEqual(log.status_code, 302)
 
 
-def build_stub_session_with(adapter):
-    session = build_stub_session()
-    session.mount("https://", adapter)
-    return session
-
-
 class SessionOptionsTests(TestCase):
     def test_a_session_wide_stream_is_honoured(self):
-        session = logged_session()
+        session = build_session()
         session.stream = True
 
         session.get(URL)
@@ -156,7 +132,7 @@ class SessionOptionsTests(TestCase):
         )
 
     def test_a_bytes_header_is_stored_as_text(self):
-        logged_session().get(URL, headers={"X-Trace": b"abc"})
+        build_session().get(URL, headers={"X-Trace": b"abc"})
 
         self.assertEqual(HttpRequestLog.objects.get().request_headers["X-Trace"], "abc")
 
@@ -235,10 +211,7 @@ class AlternativeTests(MailTestCase):
 
 class UrlCredentialTests(TestCase):
     def test_credentials_in_the_url_are_not_stored(self):
-        session = LoggedSession()
-        session.mount("https://", StubAdapter())
-
-        session.get("https://carl:hunter2@api.example.com/things")
+        build_session().get("https://carl:hunter2@api.example.com/things")
 
         url = HttpRequestLog.objects.get().url
         self.assertNotIn("hunter2", url)

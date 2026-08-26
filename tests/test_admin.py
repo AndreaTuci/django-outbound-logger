@@ -6,7 +6,7 @@ from outbound_logger.http.models import HttpRequestLog
 from outbound_logger.mail.models import EmailLog
 
 from .base import MailTestCase
-from .stubs import StubAdapter
+from .stubs import build_session
 
 CHANGELIST_URL = reverse("admin:outbound_mail_emaillog_changelist")
 
@@ -64,11 +64,8 @@ class HttpRequestLogAdminTests(MailTestCase):
         cls.staff = User.objects.create_superuser("staff", "staff@example.com", "secret")
 
     def setUp(self):
-        from outbound_logger.http.session import LoggedSession
-
         self.client.force_login(self.staff)
-        session = LoggedSession()
-        session.mount("https://", StubAdapter())
+        session = build_session()
         session.get("https://api.example.com/things")
         session.get("https://api.example.com/unrelated")
         self.log = HttpRequestLog.objects.filter(url__endswith="things").get()

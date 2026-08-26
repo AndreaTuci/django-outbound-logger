@@ -8,11 +8,8 @@ from requests.exceptions import ConnectionError
 
 from outbound_logger.http.models import BodyOmission, HttpRequestAttempt, HttpRequestLog
 from outbound_logger.http.retry import retry_requests
-from outbound_logger.http.session import LoggedSession
 
-from .stubs import StubAdapter, build_stub_session
-
-URL = "https://api.example.com/things"
+from .stubs import URL, StubAdapter, build_session, build_stub_session
 CHANGELIST_URL = reverse("admin:outbound_http_httprequestlog_changelist")
 WITH_FACTORY = override_settings(
     OUTBOUND_LOGGER={"HTTP_SESSION_FACTORY": "tests.stubs.build_stub_session"}
@@ -21,8 +18,7 @@ WITH_FACTORY = override_settings(
 
 def failed_call(method="get", **kwargs):
     """Make a call that never reaches anybody, and return its log."""
-    session = LoggedSession()
-    session.mount("https://", StubAdapter(error=ConnectionError))
+    session = build_session(StubAdapter(error=ConnectionError))
     try:
         getattr(session, method)(URL, **kwargs)
     except ConnectionError:
@@ -30,18 +26,11 @@ def failed_call(method="get", **kwargs):
     return HttpRequestLog.objects.latest("pk")
 
 
-def stub_session(adapter=None):
-    session = build_stub_session()
-    if adapter:
-        session.mount("https://", adapter)
-    return session
-
-
 class RetryTests(TestCase):
     def test_a_failed_request_is_answered_the_second_time(self):
         log = failed_call()
 
-        report = retry_requests([log], session=stub_session())
+        report = retry_requests([log], session=build_stub_session())
 
         self.assertEqual(report.succeeded, [log])
         self.assertEqual(HttpRequestLog.objects.count(), 1)  # the retry reuses the row
@@ -53,7 +42,7 @@ class RetryTests(TestCase):
     def test_both_tries_are_kept(self):
         log = failed_call()
 
-        retry_requests([log], session=stub_session())
+        retry_requests([log], session=build_stub_session())
 
         self.assertEqual(
             list(log.attempts.order_by("pk").values_list("trigger", "status_code")),
@@ -66,7 +55,7 @@ class RetryTests(TestCase):
         log.save()
         adapter = StubAdapter()
 
-        retry_requests([log], session=stub_session(adapter))
+        retry_requests([log], session=build_stub_session(adapter))
 
         sent = adapter.received[-1]
         self.assertEqual(sent.headers["Authorization"], "Bearer the-real-one")
@@ -74,7 +63,7 @@ class RetryTests(TestCase):
     def test_a_server_error_counts_as_a_failure(self):
         log = failed_call()
 
-        report = retry_requests([log], session=stub_session(StubAdapter(status_code=503)))
+        report = retry_requests([log], session=build_stub_session(StubAdapter(status_code=503)))
 
         self.assertEqual(report.failed, [log])
         log.refresh_from_db()
@@ -84,7 +73,7 @@ class RetryTests(TestCase):
         log = failed_call()
 
         report = retry_requests(
-            [log], session=stub_session(StubAdapter(error=ConnectionError))
+            [log], session=build_stub_session(StubAdapter(error=ConnectionError))
         )
 
         self.assertEqual(report.failed, [log])
@@ -95,7 +84,7 @@ class RetryTests(TestCase):
     def test_a_post_is_skipped_unless_it_was_marked(self):
         log = failed_call("post", json={"name": "thing"})
 
-        report = retry_requests([log], session=stub_session())
+        report = retry_requests([log], session=build_stub_session())
 
         self.assertEqual(report.skipped[0][0], log)
 
@@ -103,7 +92,7 @@ class RetryTests(TestCase):
         log = failed_call("post", json={"name": "thing"}, retriable=True)
         adapter = StubAdapter()
 
-        report = retry_requests([log], session=stub_session(adapter))
+        report = retry_requests([log], session=build_stub_session(adapter))
 
         self.assertEqual(report.succeeded, [log])
         self.assertEqual(adapter.received[-1].body, b'{"name": "thing"}')
@@ -114,7 +103,7 @@ class RetryTests(TestCase):
         log.request_body_omission = BodyOmission.TOO_LARGE
         log.save()
 
-        report = retry_requests([log], session=stub_session())
+        report = retry_requests([log], session=build_stub_session())
 
         self.assertEqual(report.skipped[0][0], log)
 

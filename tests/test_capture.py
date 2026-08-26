@@ -4,17 +4,7 @@ from django.test import override_settings
 from outbound_logger.mail.capture import CONTEXT_ATTRIBUTE, CONTEXT_HEADER
 from outbound_logger.mail.models import EmailLog
 
-from .base import LOCMEM, MailTestCase
-HTML = "<p>Hello</p>"
-
-
-def build_message(**kwargs):
-    kwargs.setdefault("subject", "Subject")
-    kwargs.setdefault("body", "Body")
-    kwargs.setdefault("from_email", "from@example.com")
-    kwargs.setdefault("to", ["to@example.com"])
-    return mail.EmailMultiAlternatives(**kwargs)
-
+from .base import HTML, LOCMEM, MailTestCase, build_message
 
 class CaptureTests(MailTestCase):
     def test_the_logged_message_id_is_the_delivered_one(self):
