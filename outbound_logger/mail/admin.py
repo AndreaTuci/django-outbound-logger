@@ -3,6 +3,7 @@ from django.db.models import QuerySet, TextField
 from django.db.models.functions import Cast
 from django.http import HttpRequest
 from django.template.defaultfilters import filesizeformat
+from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from ..admin import ReadOnlyLogAdmin, RetentionFilter, message_retry_report
@@ -11,6 +12,7 @@ from .retry import retry_emails
 
 RECIPIENTS_SEARCH_FIELD = "_recipients"
 DEFERRED_FIELDS = ("raw_message", "body", "html_body")
+PREVIEW_HEIGHT = "30em"
 
 
 class EmailSendAttemptInline(admin.TabularInline):
@@ -39,7 +41,7 @@ class EmailLogAdmin(ReadOnlyLogAdmin):
     list_filter = ("status", "created_at", RetentionFilter)
     search_fields = ("subject", "from_email", "message_id", RECIPIENTS_SEARCH_FIELD)
     inlines = (EmailSendAttemptInline,)
-    readonly_fields = ("raw_message_size",)
+    readonly_fields = ("html_preview", "raw_message_size")
     fieldsets = (
         (None, {"fields": ("created_at", "status", "sent_at", "message_id", "context")}),
         (
@@ -52,6 +54,7 @@ class EmailLogAdmin(ReadOnlyLogAdmin):
                 "fields": (
                     "body",
                     "html_body",
+                    "html_preview",
                     "headers",
                     "attachments",
                     "body_omission",
@@ -79,6 +82,23 @@ class EmailLogAdmin(ReadOnlyLogAdmin):
     @admin.display(description=_("to"))
     def recipients(self, log: EmailLog) -> str:
         return ", ".join(log.to)
+
+    @admin.display(description=_("HTML preview"))
+    def html_preview(self, log: EmailLog) -> str:
+        if not log.html_body:
+            return _("no HTML body")
+
+        # Sandboxed, and never inlined: this is whatever the project put in the
+        # message - user-supplied names included - rendered in a page where a
+        # staff session is logged in.
+        return format_html(
+            '<iframe sandbox srcdoc="{}" title="{}" '
+            'style="width:100%;height:{};border:1px solid #ccc;background:#fff">'
+            "</iframe>",
+            log.html_body,
+            log.subject,
+            PREVIEW_HEIGHT,
+        )
 
     @admin.display(description=_("raw MIME size"))
     def raw_message_size(self, log: EmailLog) -> str:
