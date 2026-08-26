@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -14,7 +16,7 @@ class BodyOmission(models.TextChoices):
 
 
 # What a log holds when no response ever came back.
-NO_RESPONSE = {
+NO_RESPONSE: dict[str, Any] = {
     "status_code": None,
     "reason": "",
     "response_headers": {},
@@ -71,14 +73,14 @@ class HttpRequestLog(models.Model):
             models.Index(fields=("status_code",)),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.method} {self.url}"
 
     @property
-    def is_error(self):
+    def is_error(self) -> bool:
         return self.status == self.Status.FAILED or (self.status_code or 0) >= 400
 
-    def why_not_retriable(self):
+    def why_not_retriable(self) -> str:
         """What keeps this request from being sent again, or "" when nothing does."""
         if not self.retriable:
             return _("this request is not marked as retriable")
@@ -87,20 +89,24 @@ class HttpRequestLog(models.Model):
         return ""
 
     @property
-    def can_retry(self):
+    def can_retry(self) -> bool:
         return not self.why_not_retriable()
 
-    def mark_completed(self, response_fields, duration_ms, trigger):
+    def mark_completed(
+        self, response_fields: dict[str, Any], duration_ms: int, trigger: str
+    ) -> "HttpRequestAttempt":
         self.update(
             status=self.Status.COMPLETED, duration_ms=duration_ms, **response_fields
         )
         return self.attempts.create(trigger=trigger, status_code=self.status_code)
 
-    def mark_failed(self, error, duration_ms, trigger):
+    def mark_failed(
+        self, error: str, duration_ms: int, trigger: str
+    ) -> "HttpRequestAttempt":
         self.update(status=self.Status.FAILED, duration_ms=duration_ms, **NO_RESPONSE)
         return self.attempts.create(trigger=trigger, error=error)
 
-    def update(self, **fields):
+    def update(self, **fields: Any) -> None:
         for name, value in fields.items():
             setattr(self, name, value)
         self.save()
@@ -133,5 +139,6 @@ class HttpRequestAttempt(models.Model):
         verbose_name_plural = _("request attempts")
         ordering = ("-started_at",)
 
-    def __str__(self):
-        return f"{self.get_trigger_display()}: {self.status_code or _('no response')}"
+    def __str__(self) -> str:
+        outcome = self.status_code or _("no response")
+        return f"{self.get_trigger_display()}: {outcome}"

@@ -1,6 +1,9 @@
 """Management command bases shared by the logs."""
 
-from django.core.management.base import BaseCommand
+from typing import Any
+
+from django.core.management.base import BaseCommand, CommandParser
+from django.db.models import Model
 
 from .purge import cutoff, expired, purge_logs
 
@@ -8,9 +11,9 @@ from .purge import cutoff, expired, purge_logs
 class PurgeLogsCommand(BaseCommand):
     """Deletes the logs of `model` that are older than the retention window."""
 
-    model = None
+    model: type[Model]
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             "--days",
             type=int,
@@ -23,7 +26,7 @@ class PurgeLogsCommand(BaseCommand):
             help="count what would be deleted, delete nothing",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         days = options["days"]
         older_than = f"older than {cutoff(days):%Y-%m-%d %H:%M}"
 

@@ -2,8 +2,9 @@
 
 import json
 from email.mime.base import MIMEBase
+from typing import Any, Iterable
 
-from django.core.mail import make_msgid
+from django.core.mail import EmailMessage, make_msgid
 from django.core.mail.utils import DNS_NAME
 from django.utils.encoding import force_str
 
@@ -15,7 +16,7 @@ CONTEXT_HEADER = "X-Outbound-Context"
 HTML_MIMETYPE = "text/html"
 
 
-def create_log(message):
+def create_log(message: EmailMessage) -> EmailLog:
     """Save the log row for `message`. Mutates it: pins the Message-ID, drops our header."""
     message_id = pin_message_id(message)
     context = pop_context(message)
@@ -41,7 +42,7 @@ def create_log(message):
     )
 
 
-def pin_message_id(message):
+def pin_message_id(message: EmailMessage) -> str:
     """Django mints a new Message-ID on every message() call: fix one so the log and
     the delivered mail carry the same identifier."""
     for name, value in message.extra_headers.items():
@@ -53,7 +54,7 @@ def pin_message_id(message):
     return message_id
 
 
-def pop_context(message):
+def pop_context(message: EmailMessage) -> dict[str, Any]:
     """Read the caller's correlation data, from the attribute and from the header.
 
     The header is removed here: it is ours, the recipient has no business seeing it.
@@ -73,7 +74,7 @@ def pop_context(message):
     return context
 
 
-def split_bodies(message):
+def split_bodies(message: EmailMessage) -> tuple[str, str]:
     """Return the text body and the HTML one, wherever the sender put them."""
     body = force_str(message.body or "")
     if getattr(message, "content_subtype", "plain") == "html":
@@ -86,7 +87,7 @@ def split_bodies(message):
     return body, ""
 
 
-def capture_raw_message(message):
+def capture_raw_message(message: EmailMessage) -> tuple[bytes | None, str]:
     """Return the MIME bytes to store, and the reason when we store none."""
     if not get_setting("STORE_BODY"):
         return None, EmailLog.BodyOmission.DISABLED
@@ -98,11 +99,11 @@ def capture_raw_message(message):
     return raw_message, ""
 
 
-def describe_attachments(message):
+def describe_attachments(message: EmailMessage) -> list[dict[str, Any]]:
     return [describe_attachment(attachment) for attachment in message.attachments]
 
 
-def describe_attachment(attachment):
+def describe_attachment(attachment: Any) -> dict[str, Any]:
     if isinstance(attachment, MIMEBase):  # accepted by Django up to 6.x
         content = attachment.as_bytes()
         return {
@@ -119,5 +120,5 @@ def describe_attachment(attachment):
     }
 
 
-def addresses(values):
+def addresses(values: Iterable[str] | None) -> list[str]:
     return [force_str(value) for value in values or ()]

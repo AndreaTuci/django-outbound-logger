@@ -1,7 +1,10 @@
 """The email backend that logs, then delegates to the one that really sends."""
 
+from typing import Any
+
 import django
 from django.core.exceptions import ImproperlyConfigured
+from django.core.mail import EmailMessage
 from django.core.mail.backends.base import BaseEmailBackend
 from django.utils.module_loading import import_string
 
@@ -16,7 +19,7 @@ from .models import EmailSendAttempt
 SUPPORTS_ALIAS = django.VERSION >= (6, 1)
 
 
-def build_delegate(**options):
+def build_delegate(**options: Any) -> BaseEmailBackend:
     """Build the backend that really sends, from MAIL_MAILER or from MAIL_BACKEND."""
     mailer_alias = get_setting("MAIL_MAILER")
     if mailer_alias:
@@ -45,20 +48,22 @@ def build_delegate(**options):
 class LoggingEmailBackend(BaseEmailBackend):
     """Log every message to the database, with the outcome of its delivery."""
 
-    def __init__(self, fail_silently=False, *, alias=None, **options):
+    def __init__(
+        self, fail_silently: bool = False, *, alias: str | None = None, **options: Any
+    ) -> None:
         super().__init__(alias=alias)
         # Set here rather than left to the base class: Django 6.1 deprecated its
         # own fail_silently and asks subclasses to own the attribute.
         self.fail_silently = fail_silently
         self.delegate = build_delegate(**options)
 
-    def open(self):
+    def open(self) -> bool | None:
         return self.delegate.open()
 
-    def close(self):
+    def close(self) -> None:
         self.delegate.close()
 
-    def send_messages(self, email_messages):
+    def send_messages(self, email_messages: list[EmailMessage]) -> int:
         # Logged before the connection is opened: a mail server that is down must
         # leave rows behind, not a hole.
         pairs = [(message, create_log(message)) for message in email_messages]

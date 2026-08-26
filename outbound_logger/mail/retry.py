@@ -1,5 +1,7 @@
 """Send logged messages again."""
 
+from typing import Iterable
+
 from ..retry import RetryReport
 from .backends import build_delegate
 from .delivery import send_and_record
@@ -7,7 +9,9 @@ from .models import EmailLog, EmailSendAttempt
 from .rebuild import rebuild_message
 
 
-def retry_emails(logs, trigger=EmailSendAttempt.Trigger.CODE):
+def retry_emails(
+    logs: Iterable[EmailLog], trigger: str = EmailSendAttempt.Trigger.CODE
+) -> RetryReport:
     """Send every retriable log again on one connection, and say how it went.
 
     Nothing is raised: a log that cannot be rebuilt lands in `skipped` with its

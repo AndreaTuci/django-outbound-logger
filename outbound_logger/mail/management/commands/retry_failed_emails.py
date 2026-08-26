@@ -1,6 +1,8 @@
 from datetime import timedelta
+from typing import Any
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandParser
+from django.db.models import QuerySet
 from django.db.models import Count
 from django.utils import timezone
 
@@ -11,7 +13,7 @@ from ...retry import retry_emails
 class Command(BaseCommand):
     help = "Send failed messages again."
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             "--since",
             type=int,
@@ -30,7 +32,7 @@ class Command(BaseCommand):
             help="list what would be sent again, send nothing",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         logs = list(select_logs(options["since"], options["max_attempts"]))
 
         if options["dry_run"]:
@@ -47,7 +49,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"{log.pk} skipped: {reason}"))
 
 
-def select_logs(since_days, max_attempts):
+def select_logs(since_days: int | None, max_attempts: int | None) -> QuerySet:
     logs = EmailLog.objects.filter(status=EmailLog.Status.FAILED).order_by("created_at")
     if since_days:
         logs = logs.filter(created_at__gte=timezone.now() - timedelta(days=since_days))

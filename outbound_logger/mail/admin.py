@@ -1,6 +1,7 @@
 from django.contrib import admin
-from django.db.models import Count, TextField
+from django.db.models import Count, QuerySet, TextField
 from django.db.models.functions import Cast
+from django.http import HttpRequest
 from django.template.defaultfilters import filesizeformat
 from django.utils.translation import gettext_lazy as _
 
@@ -19,7 +20,7 @@ class EmailSendAttemptInline(admin.TabularInline):
     fields = ("started_at", "trigger", "succeeded", "error")
     readonly_fields = fields
 
-    def has_add_permission(self, request, obj=None):
+    def has_add_permission(self, request: HttpRequest, obj: EmailLog | None = None) -> bool:
         return False
 
 
@@ -60,7 +61,7 @@ class EmailLogAdmin(ReadOnlyLogAdmin):
         ),
     )
 
-    def get_queryset(self, request):
+    def get_queryset(self, request: HttpRequest) -> QuerySet:
         # Recipients live in a JSON list: cast it to text so that admin search
         # can run its LIKE over it on every database backend.
         annotations = {
@@ -70,20 +71,20 @@ class EmailLogAdmin(ReadOnlyLogAdmin):
         return super().get_queryset(request).annotate(**annotations)
 
     @admin.action(description=_("Send the selected messages again"))
-    def retry_selected(self, request, queryset):
+    def retry_selected(self, request: HttpRequest, queryset: QuerySet) -> None:
         report = retry_emails(queryset, trigger=EmailSendAttempt.Trigger.ADMIN)
         message_retry_report(self, request, report)
 
     @admin.display(description=_("attempts"), ordering=ATTEMPT_COUNT_FIELD)
-    def attempt_count(self, log):
+    def attempt_count(self, log: EmailLog) -> int:
         return getattr(log, ATTEMPT_COUNT_FIELD)
 
     @admin.display(description=_("to"))
-    def recipients(self, log):
+    def recipients(self, log: EmailLog) -> str:
         return ", ".join(log.to)
 
     @admin.display(description=_("raw MIME size"))
-    def raw_message_size(self, log):
+    def raw_message_size(self, log: EmailLog) -> str:
         if log.raw_message is None:
             return log.get_body_omission_display() or _("not stored")
         return filesizeformat(len(log.raw_message))

@@ -2,10 +2,19 @@
 
 import traceback
 
+from django.core.mail import EmailMessage
+from django.core.mail.backends.base import BaseEmailBackend
+
+from .models import EmailLog
+
+Pairs = list[tuple[EmailMessage, EmailLog]]
+
 NOTHING_SENT = "The backend accepted the message but reported nothing sent."
 
 
-def send_and_record(delegate, pairs, trigger, fail_silently):
+def send_and_record(
+    delegate: BaseEmailBackend, pairs: Pairs, trigger: str, fail_silently: bool
+) -> int:
     """Send every (message, log) pair on a single connection, return how many went out.
 
     Every outcome lands on its log. With fail_silently off, a failure is re-raised
@@ -31,7 +40,9 @@ def send_and_record(delegate, pairs, trigger, fail_silently):
             delegate.close()
 
 
-def deliver(delegate, pairs, trigger, fail_silently):
+def deliver(
+    delegate: BaseEmailBackend, pairs: Pairs, trigger: str, fail_silently: bool
+) -> int:
     """One message at a time, so every log gets its own outcome."""
     sent = 0
     for message, log in pairs:

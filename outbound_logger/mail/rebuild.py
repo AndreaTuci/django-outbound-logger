@@ -1,13 +1,16 @@
 """Build the message to send again out of what was logged."""
 
 from email import message_from_bytes, policy
+from typing import Any
 
 from django.core.mail import EmailMultiAlternatives
+
+from .models import EmailLog
 
 HTML_MIMETYPE = "text/html"
 
 
-def rebuild_message(log):
+def rebuild_message(log: EmailLog) -> EmailMultiAlternatives:
     """Rebuild a Django message from the log.
 
     The fields carry the envelope and the bodies; the attachments are lifted back
@@ -36,7 +39,7 @@ def rebuild_message(log):
     return message
 
 
-def extract_attachments(raw_message):
+def extract_attachments(raw_message: bytes | None) -> list[tuple[str, Any, str]]:
     if raw_message is None:
         return []
 

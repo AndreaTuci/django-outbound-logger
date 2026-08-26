@@ -11,5 +11,5 @@ class OutboundMailConfig(AppConfig):
     label = "outbound_mail"
     verbose_name = _("Outbound mail")
 
-    def ready(self):
+    def ready(self) -> None:
         register(check_settings)

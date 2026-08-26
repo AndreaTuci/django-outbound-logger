@@ -2,8 +2,10 @@
 
 import time
 import traceback
+from typing import Any
 
 import requests
+from requests import Response
 
 from .capture import record_failure, record_response
 from .models import HttpRequestAttempt
@@ -20,13 +22,23 @@ class LoggedSession(requests.Session):
     single call as keyword arguments to any of the request methods.
     """
 
-    def __init__(self, *, context=None, retriable=None):
+    def __init__(
+        self, *, context: dict[str, Any] | None = None, retriable: bool | None = None
+    ) -> None:
         super().__init__()
         self.context = context or {}
         self.retriable = retriable
 
-    def request(self, method, url, *, context=None, retriable=None, **kwargs):
-        options = {
+    def request(  # type: ignore[override]  # narrowed on purpose: the extras are ours
+        self,
+        method: str,
+        url: str,
+        *,
+        context: dict[str, Any] | None = None,
+        retriable: bool | None = None,
+        **kwargs: Any,
+    ) -> Response:
+        options: dict[str, Any] = {
             "retriable": self.resolve_retriable(method, retriable),
             "context": {**self.context, **(context or {})},
             "trigger": HttpRequestAttempt.Trigger.REQUEST,
@@ -54,7 +66,7 @@ class LoggedSession(requests.Session):
         )
         return response
 
-    def resolve_retriable(self, method, retriable):
+    def resolve_retriable(self, method: str, retriable: bool | None) -> bool:
         """The call decides, then the session, then the method itself."""
         if retriable is not None:
             return retriable
@@ -63,5 +75,5 @@ class LoggedSession(requests.Session):
         return method.upper() in IDEMPOTENT_METHODS
 
 
-def elapsed_ms(started):
+def elapsed_ms(started: float) -> int:
     return round((time.monotonic() - started) * 1000)

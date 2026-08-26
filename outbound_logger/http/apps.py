@@ -13,5 +13,5 @@ class OutboundHttpConfig(AppConfig):
     label = "outbound_http"
     verbose_name = _("Outbound HTTP")
 
-    def ready(self):
+    def ready(self) -> None:
         register(check_settings)

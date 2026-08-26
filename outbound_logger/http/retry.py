@@ -2,14 +2,16 @@
 
 import time
 import traceback
+from typing import Iterable, Mapping
 
 import requests
+from requests import PreparedRequest, Session
 from django.utils.module_loading import import_string
 
 from ..conf import get_setting
 from ..retry import RetryReport
 from .capture import describe_response
-from .models import HttpRequestAttempt
+from .models import HttpRequestAttempt, HttpRequestLog
 from .redaction import REDACTED
 from .session import elapsed_ms
 
@@ -18,13 +20,17 @@ SERVER_ERROR = 500
 RECOMPUTED_HEADERS = frozenset({"content-length", "host"})
 
 
-def build_session():
+def build_session() -> Session:
     """The session a replay is prepared on: the project's own, when it names one."""
     factory = get_setting("HTTP_SESSION_FACTORY")
     return import_string(factory)() if factory else requests.Session()
 
 
-def retry_requests(logs, trigger=HttpRequestAttempt.Trigger.CODE, session=None):
+def retry_requests(
+    logs: Iterable[HttpRequestLog],
+    trigger: str = HttpRequestAttempt.Trigger.CODE,
+    session: Session | None = None,
+) -> RetryReport:
     """Send every retriable request again, and say how it went.
 
     Nothing is raised: what cannot be replayed lands in `skipped` with its reason,
@@ -45,7 +51,7 @@ def retry_requests(logs, trigger=HttpRequestAttempt.Trigger.CODE, session=None):
     return RetryReport(succeeded, failed, skipped)
 
 
-def replay(log, session, trigger):
+def replay(log: HttpRequestLog, session: Session, trigger: str) -> bool:
     """Send the logged request again. True when the endpoint gave a real answer:
     no response and a server error are both the failure we were retrying."""
     started = time.monotonic()
@@ -63,7 +69,7 @@ def replay(log, session, trigger):
     return response.status_code < SERVER_ERROR
 
 
-def prepare(log, session):
+def prepare(log: HttpRequestLog, session: Session) -> PreparedRequest:
     request = requests.Request(
         method=log.method,
         url=log.url,
@@ -73,7 +79,7 @@ def prepare(log, session):
     return session.prepare_request(request)
 
 
-def replayable_headers(headers):
+def replayable_headers(headers: Mapping[str, str]) -> dict[str, str]:
     """Redacted values are dropped: the session puts its own credentials back."""
     return {
         name: value

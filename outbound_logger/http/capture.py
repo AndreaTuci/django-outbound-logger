@@ -1,11 +1,23 @@
 """Turn an outgoing request and its outcome into a log row."""
 
+from typing import Any
+
+from requests import PreparedRequest, Response
+
 from ..conf import get_setting
 from .models import BodyOmission, HttpRequestLog
 from .redaction import redact
 
 
-def record_response(response, *, streamed, duration_ms, retriable, context, trigger):
+def record_response(
+    response: Response,
+    *,
+    streamed: bool,
+    duration_ms: int,
+    retriable: bool,
+    context: dict[str, Any],
+    trigger: str,
+) -> HttpRequestLog:
     log = HttpRequestLog.objects.create(
         status=HttpRequestLog.Status.COMPLETED,
         duration_ms=duration_ms,
@@ -19,8 +31,16 @@ def record_response(response, *, streamed, duration_ms, retriable, context, trig
 
 
 def record_failure(
-    method, url, prepared, error, *, duration_ms, retriable, context, trigger
-):
+    method: str,
+    url: str,
+    prepared: PreparedRequest | None,
+    error: str,
+    *,
+    duration_ms: int,
+    retriable: bool,
+    context: dict[str, Any],
+    trigger: str,
+) -> HttpRequestLog:
     log = HttpRequestLog.objects.create(
         status=HttpRequestLog.Status.FAILED,
         duration_ms=duration_ms,
@@ -32,7 +52,9 @@ def record_failure(
     return log
 
 
-def describe_request(prepared, method="", url=""):
+def describe_request(
+    prepared: PreparedRequest | None, method: str = "", url: str = ""
+) -> dict[str, Any]:
     """What was really sent, or just method and url when nothing was prepared."""
     if prepared is None:
         return {"method": method, "url": url}
@@ -47,7 +69,7 @@ def describe_request(prepared, method="", url=""):
     }
 
 
-def describe_response(response, streamed):
+def describe_response(response: Response, streamed: bool) -> dict[str, Any]:
     body, omission, truncated = capture_response_body(response, streamed)
     return {
         "status_code": response.status_code,
@@ -59,7 +81,7 @@ def describe_response(response, streamed):
     }
 
 
-def capture_request_body(raw):
+def capture_request_body(raw: Any) -> tuple[str, str]:
     """Whole or nothing: a body that cannot be replayed exactly is not stored."""
     if not get_setting("STORE_BODY"):
         return "", BodyOmission.DISABLED
@@ -77,7 +99,7 @@ def capture_request_body(raw):
         return "", BodyOmission.BINARY
 
 
-def capture_response_body(response, streamed):
+def capture_response_body(response: Response, streamed: bool) -> tuple[str, str, bool]:
     """Read, not replayed: above the limit it is cut and said to be cut."""
     if not get_setting("STORE_BODY"):
         return "", BodyOmission.DISABLED, False

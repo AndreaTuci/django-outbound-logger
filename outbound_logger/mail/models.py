@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -58,10 +60,11 @@ class EmailLog(models.Model):
         ordering = ("-created_at",)
         indexes = [models.Index(fields=("status", "created_at"))]
 
-    def __str__(self):
-        return f"{self.subject or '(no subject)'} -> {', '.join(self.to)}"
+    def __str__(self) -> str:
+        subject = self.subject or _("(no subject)")
+        return f"{subject} -> {', '.join(self.to)}"
 
-    def why_not_retriable(self):
+    def why_not_retriable(self) -> str:
         """What keeps this message from being sent again, or "" when nothing does."""
         if self.status != self.Status.FAILED:
             return _("only a failed message can be sent again")
@@ -72,16 +75,16 @@ class EmailLog(models.Model):
         return ""
 
     @property
-    def can_retry(self):
+    def can_retry(self) -> bool:
         return not self.why_not_retriable()
 
-    def mark_sent(self, trigger):
+    def mark_sent(self, trigger: str) -> "EmailSendAttempt":
         self.status = self.Status.SENT
         self.sent_at = timezone.now()
         self.save(update_fields=("status", "sent_at"))
         return self.attempts.create(succeeded=True, trigger=trigger)
 
-    def mark_failed(self, error, trigger):
+    def mark_failed(self, error: str, trigger: str) -> "EmailSendAttempt":
         self.status = self.Status.FAILED
         self.save(update_fields=("status",))
         return self.attempts.create(succeeded=False, error=error, trigger=trigger)
@@ -112,6 +115,6 @@ class EmailSendAttempt(models.Model):
         verbose_name_plural = _("send attempts")
         ordering = ("-started_at",)
 
-    def __str__(self):
+    def __str__(self) -> str:
         outcome = _("succeeded") if self.succeeded else _("failed")
         return f"{self.get_trigger_display()}: {outcome}"

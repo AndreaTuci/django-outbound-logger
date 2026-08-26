@@ -1,6 +1,8 @@
 from datetime import timedelta
+from typing import Any
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandParser
+from django.db.models import QuerySet
 from django.db.models import Count, Q
 from django.utils import timezone
 
@@ -11,7 +13,7 @@ from ...retry import SERVER_ERROR, retry_requests
 class Command(BaseCommand):
     help = "Send failed requests again. Only retriable ones are considered."
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             "--since",
             type=int,
@@ -35,7 +37,7 @@ class Command(BaseCommand):
             help="list what would be sent again, send nothing",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         logs = list(
             select_logs(
                 options["since"],
@@ -60,7 +62,9 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"{log.pk} skipped: {reason}"))
 
 
-def select_logs(since_days, max_attempts, include_server_errors):
+def select_logs(
+    since_days: int | None, max_attempts: int | None, include_server_errors: bool
+) -> QuerySet:
     unanswered = Q(status=HttpRequestLog.Status.FAILED)
     if include_server_errors:
         unanswered |= Q(status_code__gte=SERVER_ERROR)
