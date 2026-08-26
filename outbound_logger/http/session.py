@@ -1,5 +1,6 @@
 """A requests session that writes every call to the database."""
 
+import logging
 import time
 import traceback
 from typing import Any
@@ -12,6 +13,8 @@ from .models import HttpRequestAttempt
 
 # RFC 9110: repeating these has the same effect as making them once.
 IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE"})
+
+logger = logging.getLogger(__name__)
 
 
 class LoggedSession(requests.Session):
@@ -48,7 +51,8 @@ class LoggedSession(requests.Session):
         try:
             response = super().request(method, url, **kwargs)
         except Exception as error:
-            record_failure(
+            self.record(
+                record_failure,
                 method,
                 url,
                 getattr(error, "request", None),
@@ -58,13 +62,21 @@ class LoggedSession(requests.Session):
             )
             raise
 
-        record_response(
+        self.record(
+            record_response,
             response,
-            streamed=bool(kwargs.get("stream")),
+            streamed=bool(kwargs.get("stream", self.stream)),
             duration_ms=elapsed_ms(started),
             **options,
         )
         return response
+
+    def record(self, write: Any, *args: Any, **kwargs: Any) -> None:
+        """Writing the log must never be what breaks the call it is logging."""
+        try:
+            write(*args, **kwargs)
+        except Exception:
+            logger.exception("could not log an outgoing request")
 
     def resolve_retriable(self, method: str, retriable: bool | None) -> bool:
         """The call decides, then the session, then the method itself."""

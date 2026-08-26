@@ -13,7 +13,7 @@ from ..retry import RetryReport
 from .capture import describe_response
 from .models import HttpRequestAttempt, HttpRequestLog
 from .redaction import REDACTED
-from .session import elapsed_ms
+from .session import IDEMPOTENT_METHODS, elapsed_ms
 
 SERVER_ERROR = 500
 # requests works these out from the url and from the body it is handed.
@@ -57,8 +57,14 @@ def replay(log: HttpRequestLog, session: Session, trigger: str) -> bool:
     started = time.monotonic()
     timeout = get_setting("HTTP_RETRY_TIMEOUT")
 
+    # Following a redirect turns a replayed POST into a bodyless GET, and its 200
+    # would then hide the failure we were retrying.
+    follow = log.method.upper() in IDEMPOTENT_METHODS
+
     try:
-        response = session.send(prepare(log, session), timeout=timeout)
+        response = session.send(
+            prepare(log, session), timeout=timeout, allow_redirects=follow
+        )
     except Exception:
         log.mark_failed(traceback.format_exc(), elapsed_ms(started), trigger)
         return False
