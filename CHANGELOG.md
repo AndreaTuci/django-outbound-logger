@@ -5,7 +5,9 @@ this project follows [semantic versioning](https://semver.org/).
 
 ## [0.3.0] - 2026-08-26
 
-An adversarial review of 0.2.0. Nothing here changes how the package is set up.
+An adversarial review of 0.2.0. Nothing here changes how the package is set up,
+but run `manage.py migrate` for the new permissions and indexes, and grant
+`retry_emaillog` / `retry_httprequestlog` to whoever used to retry from the admin.
 
 ### Fixed
 

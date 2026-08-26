@@ -146,6 +146,12 @@ for the `outbound_http.retry_httprequestlog` permission), or:
 python manage.py retry_failed_requests --include-server-errors --dry-run
 ```
 
+```python
+from outbound_logger.http.retry import retry_requests
+
+report = retry_requests(HttpRequestLog.objects.filter(status="failed"))
+```
+
 A retry counts as succeeded when the endpoint answered below 500: a 502 is the
 failure you were retrying, a 404 is an answer.
 
@@ -159,8 +165,8 @@ message = EmailMultiAlternatives(...)
 message.outbound_context = {"contact_id": contact.pk}
 message.send()
 
-# or, when you only have django.core.mail.send_mail():
-send_mail(..., headers={"X-Outbound-Context": '{"contact_id": 12}'})
+# or, when the code you can reach only builds the message for you:
+EmailMessage(..., headers={"X-Outbound-Context": '{"contact_id": 12}'}).send()
 
 session.get(url, context={"contact_id": contact.pk})
 ```
@@ -236,7 +242,7 @@ Everything lives in one dict. A key that is not on this list is reported by
 | `HTTP_RETRY_TIMEOUT` | `30` | Seconds a replayed request waits. |
 | `DATABASE` | `None` | Alias the logs live on, with the router in `DATABASE_ROUTERS`. |
 
-## Two things worth knowing
+## Three things worth knowing
 
 **"Sent" means the backend took it**, not that anybody received it. Bounces
 happen after that and this package never sees them.
