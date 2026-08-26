@@ -2,13 +2,18 @@
 
 from typing import Any
 
+from django.apps import apps
 from django.conf import settings
 from django.db import DEFAULT_DB_ALIAS
+from django.utils.module_loading import import_string
 from django.core.checks import CheckMessage, Error
 from django.core.checks import Warning as CheckWarning
 from django.core.exceptions import ImproperlyConfigured
 
 SETTING_NAME = "OUTBOUND_LOGGER"
+MAIL_APP = "outbound_logger.mail"
+# What Django's own test runner puts in place of the configured backend.
+LOCMEM_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 ROUTER = "outbound_logger.routers.OutboundLoggerRouter"
 LOGGING_MAIL_BACKEND = "outbound_logger.mail.backends.LoggingEmailBackend"
 DEFAULT_REDACT_HEADERS = (
@@ -91,6 +96,7 @@ def check_settings(app_configs: Any, **kwargs: Any) -> list[CheckMessage]:
         )
 
     problems += check_database(get_setting("DATABASE"))
+    problems += check_mail_backend()
 
     if hasattr(settings, "MAILERS") and not get_setting("MAIL_MAILER"):
         problems.append(
@@ -105,6 +111,47 @@ def check_settings(app_configs: Any, **kwargs: Any) -> list[CheckMessage]:
         )
 
     return problems
+
+
+def check_mail_backend() -> list[CheckMessage]:
+    """The app can be installed, migrated and completely idle: say so.
+
+    Nothing fails when EMAIL_BACKEND points elsewhere - the mail goes out just
+    the same, unlogged - so this is the one mistake nothing else would reveal.
+    """
+    if not apps.is_installed(MAIL_APP) or any(map(logs_messages, mail_backends())):
+        return []
+
+    return [
+        CheckWarning(
+            f"{MAIL_APP} is installed but EMAIL_BACKEND is not the backend that "
+            "records: no message will be logged.",
+            hint=f"Set EMAIL_BACKEND to {LOGGING_MAIL_BACKEND!r}.",
+            id="outbound_logger.W003",
+        )
+    ]
+
+
+def mail_backends() -> list[str]:
+    """The backends this project sends through, MAILERS or the older setting."""
+    mailers = getattr(settings, "MAILERS", None)
+    if mailers:
+        return [config.get("BACKEND", "") for config in mailers.values()]
+    return [getattr(settings, "EMAIL_BACKEND", "")]
+
+
+def logs_messages(backend_path: str) -> bool:
+    # locmem is what the test runner swaps in, and it sends nothing anyway:
+    # warning about it would fire on every test run of every project.
+    if backend_path in (LOGGING_MAIL_BACKEND, LOCMEM_BACKEND):
+        return True
+
+    try:
+        backend = import_string(backend_path)
+        logging_backend = import_string(LOGGING_MAIL_BACKEND)
+    except ImportError:
+        return False
+    return isinstance(backend, type) and issubclass(backend, logging_backend)
 
 
 def check_database(alias: str | None) -> list[CheckMessage]:

@@ -4,6 +4,8 @@ from smtplib import SMTPException
 
 from django.core.mail.backends.base import BaseEmailBackend
 
+from outbound_logger.mail.backends import LoggingEmailBackend
+
 FAILURE_MESSAGE = "the server said no"
 
 
@@ -38,3 +40,7 @@ class UnclosableBackend(BaseEmailBackend):
 
     def close(self):
         raise SMTPException(FAILURE_MESSAGE)
+
+
+class SubclassedLoggingBackend(LoggingEmailBackend):
+    """What a project wrapping the logging backend would look like."""
