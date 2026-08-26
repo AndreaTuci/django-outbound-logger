@@ -4,16 +4,29 @@ from collections import Counter
 from typing import Any
 
 from django.contrib import admin, messages
-from django.db.models import Model, QuerySet
+from django.db.models import Count, Model, QuerySet
 from django.http import HttpRequest
 from django.utils.translation import gettext_lazy as _
 
 from .purge import expired
 from .retry import RetryReport
 
+ATTEMPT_COUNT_FIELD = "_attempt_count"
+
 
 class ReadOnlyLogAdmin(admin.ModelAdmin):
-    """A log records what happened: the admin reads it, nothing edits it."""
+    """A log records what happened: the admin reads it, nothing edits it.
+
+    Both logs keep their tries in an `attempts` relation, counted here once.
+    """
+
+    def get_queryset(self, request: HttpRequest) -> QuerySet:
+        annotation = {ATTEMPT_COUNT_FIELD: Count("attempts")}
+        return super().get_queryset(request).annotate(**annotation)
+
+    @admin.display(description=_("attempts"), ordering=ATTEMPT_COUNT_FIELD)
+    def attempt_count(self, log: Model) -> int:
+        return getattr(log, ATTEMPT_COUNT_FIELD)
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.db.models import Count, QuerySet, TextField
+from django.db.models import QuerySet, TextField
 from django.db.models.functions import Cast
 from django.http import HttpRequest
 from django.template.defaultfilters import filesizeformat
@@ -10,7 +10,6 @@ from .models import EmailLog, EmailSendAttempt
 from .retry import retry_emails
 
 RECIPIENTS_SEARCH_FIELD = "_recipients"
-ATTEMPT_COUNT_FIELD = "_attempt_count"
 DEFERRED_FIELDS = ("raw_message", "body", "html_body")
 
 
@@ -65,18 +64,10 @@ class EmailLogAdmin(ReadOnlyLogAdmin):
     def get_queryset(self, request: HttpRequest) -> QuerySet:
         # Recipients live in a JSON list: cast it to text so that admin search
         # can run its LIKE over it on every database backend.
-        annotations = {
-            RECIPIENTS_SEARCH_FIELD: Cast("to", TextField()),
-            ATTEMPT_COUNT_FIELD: Count("attempts"),
-        }
         # The payloads are megabytes the changelist never shows: the detail page
         # loads the one row it needs.
-        return (
-            super()
-            .get_queryset(request)
-            .defer(*DEFERRED_FIELDS)
-            .annotate(**annotations)
-        )
+        annotation = {RECIPIENTS_SEARCH_FIELD: Cast("to", TextField())}
+        return super().get_queryset(request).defer(*DEFERRED_FIELDS).annotate(**annotation)
 
     @admin.action(
         description=_("Send the selected messages again"), permissions=["retry"]
@@ -84,10 +75,6 @@ class EmailLogAdmin(ReadOnlyLogAdmin):
     def retry_selected(self, request: HttpRequest, queryset: QuerySet) -> None:
         report = retry_emails(queryset, trigger=EmailSendAttempt.Trigger.ADMIN)
         message_retry_report(self, request, report)
-
-    @admin.display(description=_("attempts"), ordering=ATTEMPT_COUNT_FIELD)
-    def attempt_count(self, log: EmailLog) -> int:
-        return getattr(log, ATTEMPT_COUNT_FIELD)
 
     @admin.display(description=_("to"))
     def recipients(self, log: EmailLog) -> str:
