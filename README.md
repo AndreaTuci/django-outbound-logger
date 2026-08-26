@@ -62,8 +62,9 @@ dotted path). Setting both is refused.
 
 ## Sending a failed message again
 
-From the admin, with the action *Send the selected messages again*. From the
-command line:
+From the admin, with the action *Send the selected messages again* — which asks
+for the `outbound_mail.retry_emaillog` permission, so that a read-only viewer
+cannot make mail go out. From the command line:
 
 ```bash
 python manage.py retry_failed_emails --dry-run
@@ -104,7 +105,10 @@ are logged and raised again — what to do with them stays your call.
 
 Sensitive headers never reach the database: `Authorization`, `Cookie`,
 `Set-Cookie` and friends are replaced with `[redacted]` before the row is
-written. The list is yours to change with `HTTP_REDACT_HEADERS`.
+written. The list is yours to change with `HTTP_REDACT_HEADERS`. Credentials
+written into the url itself go the same way. Secrets passed as query parameters
+do not: their names differ from one API to the next, and guessing would hide the
+wrong things.
 
 A response asked for with `stream=True` is left unread, so the stream is still
 yours to consume.
@@ -135,7 +139,8 @@ def build_session():
 ```
 
 The request is prepared *on* that session, so it puts its own authentication
-back. Then, from the admin action *Send the selected requests again*, or:
+back. Then, from the admin action *Send the selected requests again* (it asks
+for the `outbound_http.retry_httprequestlog` permission), or:
 
 ```bash
 python manage.py retry_failed_requests --include-server-errors --dry-run
@@ -235,6 +240,11 @@ Everything lives in one dict. A key that is not on this list is reported by
 
 **"Sent" means the backend took it**, not that anybody received it. Bounces
 happen after that and this package never sees them.
+
+**The logger never stops the send.** If a message cannot be recorded — a
+malformed header, the log database down — the failure goes to the `outbound_logger`
+Python logger and the message is handed to the backend anyway. An audit trail is
+not worth losing mail over.
 
 **In your project's own tests nothing is logged.** Django's test runner replaces
 `EMAIL_BACKEND` with the locmem backend, which is what you want: your test suite
